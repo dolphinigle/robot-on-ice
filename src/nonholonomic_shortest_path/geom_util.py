@@ -28,7 +28,7 @@ class Circle(object):
 
 class Arc(Circle):
   # Arc of a circle.
-  def __init__(self, center, radius, begin_radian, end_radian, direction):
+  def __init__(self, center, radius, begin_radian, end_radian, direction, circle_pk=None):
     '''
       radian is ccw wrt positive x axis.
       Since clockwise is basically the same if we swap begin and end,
@@ -45,6 +45,7 @@ class Arc(Circle):
     self.radius = radius
     self.begin_radian = begin_radian
     self.end_radian = end_radian
+    self.circle_pk = circle_pk
 
     if direction == CLOCKWISE:
       begin_radian, end_radian = end_radian, begin_radian
@@ -111,6 +112,8 @@ def CircleLineSegmentIntersections(circle, segment):
     dist *= -1
 
   distance = center.distance(super_point_p)
+  if distance > circle.radius:
+    return []
 
   front_side = math.sqrt(circle.radius**2 - distance**2)
   intersections = []
@@ -194,4 +197,13 @@ def GetTangentLine(circle1, is_circle1_ccw, circle2, is_circle2_ccw):
 
 def CircleIntersects(circle1, circle2):
   return (circle1.radius + circle2.radius)**2 > (circle1.center[0] - circle2.center[0])**2 + (circle1.center[1] - circle2.center[1])**2
+
+
+def IsAngleBetween(angle, lb, ub):
+  if abs(angle - lb) <= EPS or abs(angle - ub) <= EPS:
+    return False
+  delta1 = (angle - lb) % ANGLE_MOD
+  delta2 = (ub - angle) % ANGLE_MOD
+  delta = (ub - lb) % ANGLE_MOD
+  return abs(delta1 + delta2 - delta) <= EPS
 

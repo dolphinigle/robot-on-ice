@@ -269,6 +269,14 @@ class ArcTest(unittest.TestCase):
                                                        radius=40)))
 
 
+  def testIsAngleBetween(self):
+    self.assertTrue(geom_util.IsAngleBetween(1.0, 0.0, 2.0))
+    self.assertFalse(geom_util.IsAngleBetween(0.0, 0.0, 2.0))
+    self.assertFalse(geom_util.IsAngleBetween(2.0, 0.0, 2.0))
+    self.assertFalse(geom_util.IsAngleBetween(1.0, 2.0, 0.0))
+    self.assertTrue(geom_util.IsAngleBetween(4.0, 2.0, 0.0))
+
+
 if __name__ == "__main__":
   #import sys;sys.argv = ['', 'Test.testName']
   unittest.main()

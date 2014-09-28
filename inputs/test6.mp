@@ -1,9 +1,9 @@
 <Start>
-x y t
+0.2 0.5 1.57
 </Start>
 
 <Goal>
-x y t
+0.8 0.5 1.57
 </Goal>
 
 <Obstacle>

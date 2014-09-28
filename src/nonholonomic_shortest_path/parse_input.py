@@ -7,9 +7,10 @@ from shapely.geometry.linestring import LineString
 from shapely.geometry.polygon import Polygon
 
 from nonholonomic_shortest_path import geom_util
+from nonholonomic_shortest_path.geom_util import EPS
 
 
-def ReadInput(filename):
+def ReadInput(filename, enlargement=0.0):
   '''Read input file named filename
 
   Returns a tuple (start_config, end_config, obstacles)
@@ -49,8 +50,22 @@ def ReadInput(filename):
         points.append((map(float, lines[i].strip().split())))
         i += 1
       i += 1
+
       if not geom_util.IsCcw(LineString(points)):
         points.reverse()
+      if len(points) == 4:
+        # Enlarge them by a wee bit.
+        xs = [p[0] for p in points]
+        ys = [p[1] for p in points]
+        for j in range(4):
+          if abs(points[j][0] - max(xs)) < EPS:
+            points[j][0] += enlargement
+          if abs(points[j][0] - min(xs)) < EPS:
+            points[j][0] -= enlargement
+          if abs(points[j][1] - max(ys)) < EPS:
+            points[j][1] += enlargement
+          if abs(points[j][1] - min(ys)) < EPS:
+            points[j][1] -= enlargement
       obstacles.append(Polygon(points))
     else:
       raise exceptions.IOError('Keyword {0} not recognized'.format(lines[i]))

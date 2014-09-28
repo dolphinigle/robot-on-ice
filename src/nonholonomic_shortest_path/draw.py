@@ -93,10 +93,13 @@ def DrawSpace(start_config,
   pygame.display.flip() 
   
   #input handling (somewhat boilerplate code):
-  while True: 
+  quitted = False
+  while not quitted: 
     for event in pygame.event.get(): 
       if event.type == pygame.QUIT: 
-        sys.exit(0) 
+        pygame.quit()
+        quitted = True
+        break
       else: 
         pass
         # print event 

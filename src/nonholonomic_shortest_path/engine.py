@@ -3,6 +3,7 @@ from collections import defaultdict
 import math
 
 from shapely.geometry.linestring import LineString
+from shapely.geometry.point import Point
 
 from nonholonomic_shortest_path import geom_util
 from nonholonomic_shortest_path.geom_util import Circle, CLOCKWISE, \
@@ -36,6 +37,7 @@ class Configuration(object):
                is_init=False,
                is_goal=False,
                point=None,  # point of the thing. Applicable only on is_init and is_goal.
+               tangent_direction=None,
                ):
     self.pk = pk
     self.best_value = None
@@ -49,6 +51,7 @@ class Configuration(object):
       assert origin_configuration
     if origin_configuration:
       assert point is None
+      assert tangent_direction is not None
 
     self.circle = circle
     self.direction = direction
@@ -63,7 +66,7 @@ class Configuration(object):
           origin_configuration.circle,
           origin_configuration.direction,
           circle,
-          direction)
+          tangent_direction)
 
 
 class ConfigurationManager(object):
@@ -78,14 +81,16 @@ class ConfigurationManager(object):
   def GetTwoCirclesConfig(self,
                           origin_config,
                           target_circle,
-                          target_direction):
-    key = (origin_config.circle.pk, target_circle, origin_config.direction, target_direction,)
+                          target_direction,
+                          tangent_direction,):
+    key = (origin_config.circle.pk, target_circle, origin_config.direction, target_direction, tangent_direction,)
     if key in self.circle_pair_to_config:
       return self.circle_pair_to_config[key]
     config = Configuration(len(self.configurations),
                            target_circle,
                            target_direction,
-                           origin_config)
+                           origin_config,
+                           tangent_direction=tangent_direction,)
     self.configurations.append(config)
     self.circle_pair_to_config[key] = config
     return config
@@ -140,7 +145,8 @@ def _GenerateCirclesAndBasicConfig(start_config,
                                    goal_config,
                                    obstacles,
                                    turning_radius,
-                                   manager,):
+                                   manager,
+                                   level):
   circles = []
   # First generate two circles adjacent to the start and goal configs.
   circles.extend(_AdjCircles(start_config, turning_radius))
@@ -150,12 +156,22 @@ def _GenerateCirclesAndBasicConfig(start_config,
   manager.CreateEndConfig(circles[2], COUNTER_CLOCKWISE, goal_config[0])
   manager.CreateEndConfig(circles[3], CLOCKWISE, goal_config[0])
 
+  fracts = []
+  if level == 0:
+    fracts = [0.5]
+  else:
+    delta = 1.0 / (2**level)
+    fracts = [delta]
+    while fracts[-1] + delta < 1.0 - EPS:
+      fracts.append(fracts[-1] + delta)
+    fracts = [0.0] + fracts + [1.0]
+
   # Now generate midpoint circle on each vertex.
   for obstacle in obstacles:
     coords = obstacle.exterior.coords
     # Not a bug, the center is really only n-1 elements. This is since polygon's boundary repeats the last vertex.
     for p1, p2, p3 in zip(coords, coords[1:], coords[2:-1] + coords[:2]):
-      for fractions in [0.0, 0.5, 1.0]:
+      for fractions in fracts:
         circles.append(_GenerateCircle(
             LineString([p1, p2, p3]),
             angle_fraction=fractions,
@@ -171,14 +187,68 @@ def Heuristic(config, goal_config):
 
 
 class ObstacleManager(object):
-  def __init__(self, obstacles):
+  def __init__(self, obstacles, circles):
     self.obstacles = obstacles
+    self.circles = circles
+
+    # Calculate the intersecting thingies for each circle.
+    for circle in circles:
+      intersections = []
+      for obstacle in obstacles:
+        intersections.extend(geom_util.CirclePolygonIntersections(circle, obstacle))
+
+      angles = []
+      for intersection in intersections:
+        angles.append(circle.PointToAngle(intersection))
+
+      if len(angles) == 0:
+        angles.append(0.0)
+
+      angles.sort()
+      # Remove angles that are approximately equal
+      cleaned_angle = [angles[0]]
+      for angle1, angle2 in zip(angles, angles[1:]):
+        if abs(angle2 - angle1) > EPS:
+          cleaned_angle.append(angle2)
+      angles = cleaned_angle
+
+      is_obstructed = []
+      for p1, p2 in zip(angles, angles[1:] + angles[:1]):
+        dist = (p2 - p1) % (math.pi * 2.0)
+        midangle = (p1 + dist / 2.0) % (math.pi * 2.0)
+        point = circle.AngleToPoint(midangle)
+        point = Point(point[0], point[1])
+        obstructed = False
+        for obstacle in obstacles:
+          if obstacle.contains(point):
+            obstructed = True
+            break
+        is_obstructed.append(obstructed)
+      circle.intersection_angles = angles
+      circle.intersection_is_obstructed = is_obstructed
+
+    self.circle_pk_to_circle = {}
+    for circle in circles:
+      self.circle_pk_to_circle[circle.pk] = circle
 
   def CanArcGo(self, arc):
-    for obstacle in self.obstacles:
-      if geom_util.IsArcStrictIntersectPoly(arc, obstacle):
-        return False
+    assert arc.circle_pk is not None
+    circle = self.circle_pk_to_circle[arc.circle_pk]
+    for angle1, angle2, is_obstructed in zip(
+        circle.intersection_angles,
+        circle.intersection_angles[1:] + circle.intersection_angles[:1],
+        circle.intersection_is_obstructed):
+      if is_obstructed:
+        if (geom_util.IsAngleBetween(arc._begin_radian, angle1, angle2) or
+            geom_util.IsAngleBetween(arc._end_radian, angle1, angle2) or
+            geom_util.IsAngleBetween(angle1, arc._begin_radian, arc._end_radian) or
+            geom_util.IsAngleBetween(angle2, arc._begin_radian, arc._end_radian) or
+            abs(arc._begin_radian - angle1) <= EPS or
+            abs(arc._end_radian - angle2) <= EPS
+            ):
+          return False
     return True
+
 
   def CanLineStringGo(self, linestring):
     for obstacle in self.obstacles:
@@ -190,6 +260,9 @@ class ObstacleManager(object):
 def ConstructPath(start_config,
                   goal_config,
                   obstacles,
+                  boundary_obstacles,
+                  level,  # Level 0 is fastest, 1 is twice slower, 2 is 4 times slower, and so forth.
+                  can_change_direction=False,
                   turning_radius=TURNING_RADIUS,
                   ):
   '''
@@ -203,14 +276,14 @@ def ConstructPath(start_config,
   It is assumed that if the boundaries of the field is given implicitly as
   obstacles.'''
   manager = ConfigurationManager()
-  obstacle_manager = ObstacleManager(obstacles)
-  print 'Generating circles.'
   circles = _GenerateCirclesAndBasicConfig(start_config,
                                            goal_config,
                                            obstacles,
                                            turning_radius,
-                                           manager)
-  print '{0} circles generated'.format(len(circles))
+                                           manager,
+                                           level)
+  print '{0} circles generated. Running A*...'.format(len(circles))
+  obstacle_manager = ObstacleManager(obstacles + boundary_obstacles, circles)
 
   # Next, run A* starting from the initial circle.
   queue = Queue.PriorityQueue()
@@ -228,15 +301,18 @@ def ConstructPath(start_config,
     PutToQueue(init_config, new_value=0.0, previous_config=None)
 
   found_goal = None
-  print 'Running A*'
+  expansions = 0
+  re_expansions = 0
   while not queue.empty():
     _, config = queue.get()
     assert config.best_value is not None
+    expansions += 1
 
-    if config.processed_value is not None and abs(config.processed_value - config.best_value) <= EPS:
+    if config.processed_value is not None and config.best_value + EPS >= config.processed_value:
       # Already processed.
       continue
-    # print 'Processing node {0} {1}'.format(config.circle.center, config.previous_config)
+    if config.processed_value is not None:
+      re_expansions += 1
     config.processed_value = config.best_value
 
     if config.is_goal:
@@ -252,7 +328,8 @@ def ConstructPath(start_config,
                           radius=goal.circle.radius,
                           begin_radian=config.angle,
                           end_radian=goal.angle,
-                          direction=goal.direction)
+                          direction=goal.direction,
+                          circle_pk=goal.circle.pk)
       if obstacle_manager.CanArcGo(arc):
         PutToQueue(goal, config.best_value + arc.Length(), config, paths=[arc])
 
@@ -265,25 +342,29 @@ def ConstructPath(start_config,
           continue  # not possible to change direction on intersecting circles.
 
         next_config = manager.GetTwoCirclesConfig(
-            config, circle, direction)
+            config, circle, direction, direction)
         arc = geom_util.Arc(center=config.circle.center,
                             radius=config.circle.radius,
                             begin_radian=config.angle,
                             end_radian=next_config.origin_angle,
-                            direction=config.direction)
+                            direction=config.direction,
+                            circle_pk=config.circle.pk)
         segment = LineString([config.circle.AngleToPoint(next_config.origin_angle),
                               next_config.circle.AngleToPoint(next_config.angle)])
         if obstacle_manager.CanArcGo(arc) and obstacle_manager.CanLineStringGo(segment):
           PutToQueue(next_config, config.best_value + arc.Length() + segment.length, config, paths=[arc, segment])
+          if can_change_direction:
+            alt_config = manager.GetTwoCirclesConfig(config, circle, 1 - direction, direction)
+            PutToQueue(alt_config, config.best_value + arc.Length() + segment.length, config, paths=[arc, segment])
 
+  print 'Expanded {0} nodes. {1} re-expansions.'.format(expansions, re_expansions)
   if not found_goal:
-    return None
+    return None, None
   else:
-    print 'Backtracking'
     paths = []
-    print 'Found path of length {0}'.format(found_goal.best_value)
+    length = found_goal.best_value
     while found_goal.previous_config is not None:
       paths = found_goal.paths + paths
       found_goal = found_goal.previous_config
-    return paths
+    return paths, length
 
