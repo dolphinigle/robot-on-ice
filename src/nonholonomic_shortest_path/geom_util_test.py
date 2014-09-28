@@ -134,6 +134,13 @@ class ArcTest(unittest.TestCase):
       self.assertEquals(1, len(points))
 
 
+      points = geom_util.CircleLineSegmentIntersections(
+          arc,
+          LineString([(6, 7),
+                      (6, 9)]))
+      self.assertEquals(1, len(points))
+
+
   def testIsArcStrictIntersectPoly(self):
     for arc in [self.cw, self.ccw]:
       self.assertTrue(geom_util.IsArcStrictIntersectPoly(

@@ -15,7 +15,7 @@ class Test(unittest.TestCase):
     self.assertEquals(end_config, ((0.9, 0.9), 1.57))
     self.assertEquals(2, len(obstacles))
     self.assertAlmostEquals(0.08, obstacles[0].area)
-    self.assertAlmostEquals(0.01, obstacles[1].area)
+    self.assertAlmostEquals(0.11, obstacles[1].area)
 
 
 if __name__ == "__main__":

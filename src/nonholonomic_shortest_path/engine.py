@@ -1,19 +1,27 @@
 import Queue
 from collections import defaultdict
 import math
+import random
 
+from shapely import ops
 from shapely.geometry.linestring import LineString
+from shapely.geometry.multipolygon import MultiPolygon
 from shapely.geometry.point import Point
+from shapely.geometry.polygon import Polygon
 
 from nonholonomic_shortest_path import geom_util
-from nonholonomic_shortest_path.geom_util import Circle, CLOCKWISE, \
-  COUNTER_CLOCKWISE, ANGLE_MOD, EPS
-from sympy.printing.pretty.pretty_symbology import CLO
+from nonholonomic_shortest_path.geom_util import Circle, ANGLE_MOD, EPS, \
+  CLOCKWISE, COUNTER_CLOCKWISE
 
 
 MAX_TURNING_ANGLE = math.pi / 4.0
 VEHICLE_LENGTH = 0.1
 TURNING_RADIUS = VEHICLE_LENGTH / math.sin(MAX_TURNING_ANGLE)
+BOUNDARIES = [-0.5, 1.5]
+
+
+def GenFractions(level):
+  pass
 
 
 class IndexedCircle(Circle):
@@ -93,20 +101,28 @@ class ConfigurationManager(object):
     self.circle_end_configs[circle.pk].append(config)
 
 
-def _AdjCircles(configuration, radius):
+def _AdjCircles(configuration, radius, level):
   '''Generate the two indexed adjacent circles to the configuration.'''
   angles = [(configuration[1] + math.pi / 2.0) % ANGLE_MOD,
             (configuration[1] - math.pi / 2.0) % ANGLE_MOD,
             ]
+
+  if level >= 1:
+    delta = 1.0 / (2**level)
+    for i in range(2**level - 1):
+      angles.append((configuration[1] + math.pi / 2.0 + (i+1) * delta * math.pi) % ANGLE_MOD)
+      angles.append((configuration[1] - math.pi / 2.0 + (i+1) * delta * math.pi) % ANGLE_MOD)
+
   circles = []
   for angle in angles:
     circles.append(IndexedCircle(center=(configuration[0][0] + math.cos(angle) * radius,
                                          configuration[0][1] + math.sin(angle) * radius),
                                  radius=radius))
+
   return circles
 
 
-def _GenerateCircle(linestring, angle_fraction, radius):
+def _GenerateCircle(linestring, angle_fraction, radius, mirror=False):
   '''Generate a circle on the angle represented by linestring with three points.
   The center of the circle should be angle_fraction away from the boundary.
   It will touch the vertex.'''
@@ -116,6 +132,8 @@ def _GenerateCircle(linestring, angle_fraction, radius):
   end_angle = circle.PointToAngle(linestring.coords[0])
   delta = (end_angle - begin_angle) % ANGLE_MOD
   at_angle = (begin_angle + angle_fraction * delta) % ANGLE_MOD
+  if mirror:
+    at_angle = (ANGLE_MOD - at_angle)
   return IndexedCircle(center=circle.AngleToPoint(at_angle),
                        radius=radius)
 
@@ -128,14 +146,15 @@ def _GenerateCirclesAndBasicConfig(start_config,
                                    level):
   circles = []
   # First generate two circles adjacent to the start and goal configs.
-  circles.extend(_AdjCircles(start_config, turning_radius))
-  circles.extend(_AdjCircles(goal_config, turning_radius))
-  manager.CreateInitConfig(circles[0], start_config[0])
-  manager.CreateInitConfig(circles[1], start_config[0])
-  manager.CreateEndConfig(circles[2], goal_config[0])
-  manager.CreateEndConfig(circles[3], goal_config[0])
+  begins = _AdjCircles(start_config, turning_radius, level)
+  ends = _AdjCircles(goal_config, turning_radius, level)
+  for i in range(2):
+    manager.CreateInitConfig(begins[i], start_config[0])
+    manager.CreateEndConfig(ends[i], goal_config[0])
+  circles.extend(begins)
+  circles.extend(ends)
 
-  fracts = []
+  fracts = GenFractions(level)
   if level == 0:
     fracts = [0.5]
   else:
@@ -146,23 +165,92 @@ def _GenerateCirclesAndBasicConfig(start_config,
     fracts = [0.0] + fracts + [1.0]
 
   # Now generate midpoint circle on each vertex.
-  for obstacle in obstacles:
-    coords = obstacle.exterior.coords
-    # Not a bug, the center is really only n-1 elements. This is since polygon's boundary repeats the last vertex.
-    for p1, p2, p3 in zip(coords, coords[1:], coords[2:-1] + coords[:2]):
-      for fractions in fracts:
-        circles.append(_GenerateCircle(
-            LineString([p1, p2, p3]),
-            angle_fraction=fractions,
-            radius=turning_radius))
-
+  for polygon in obstacles.geoms:
+    for coords in list(map(lambda interior: interior.coords, polygon.interiors)) + [polygon.exterior.coords]:
+      # Not a bug, the center is really only n-1 elements. This is since polygon's boundary repeats the last vertex.
+      for p3, p2, p1 in zip(coords, coords[1:], coords[2:-1] + coords[:2]):
+        if p2[0] < BOUNDARIES[0] or p2[0] > BOUNDARIES[1] or p2[1] < BOUNDARIES[0] or p2[1] > BOUNDARIES[1]:
+          continue
+        if geom_util.CrossProd(p3, p2, p1) > -EPS:
+          continue
+        for fractions in fracts:
+          circles.append(_GenerateCircle(
+              LineString([p1, p2, p3]),
+              angle_fraction=fractions,
+              radius=turning_radius))
+          circles.append(_GenerateCircle(
+              LineString([p1, p2, p3]),
+              angle_fraction=fractions,
+              radius=turning_radius,
+              mirror=True))
+  
   # TODO(irvan): generate random circles
   return circles
 
 
-def Heuristic(config, goal_config):
-  return Distance(config.circle.center,
+def EuclidHeuristic(config, goal_config, *args, **kwargs):
+  return Distance(config.circle.AngleToPoint(config.angle),
                   goal_config[0])
+
+
+def VisibilityGraphHeuristic(config, goal_config, vis_graph):
+  return EuclidHeuristic(config, goal_config)
+  # return vis_graph.Heuristic(config.circle.AngleToPoint(config.angle))
+
+
+def Heuristic(config, goal_config, *args, **kwargs):
+  # return EuclidHeuristic(config, goal_config, *args, **kwargs)
+  return VisibilityGraphHeuristic(config, goal_config, *args, **kwargs)
+
+
+class VisibilityGraph(object):
+  def __init__(self, obstacles, goal_point, obstacle_manager):
+    # Gather all points
+    point_set = []
+    for poly in obstacles:
+      for coords in map(lambda i: i.coords, poly.interiors) + [poly.exterior.coords]:
+        for p1, p2, p3 in zip(coords, coords[1:], coords[2:-1] + coords[:2]):
+          if geom_util.CrossProd(p1, p2, p3) < -EPS:
+            point_set.append(p2)
+    random.shuffle(point_set)
+
+    point_set = [goal_point] + point_set
+
+    n = len(point_set)
+    distances = [None] * n
+
+    queue = Queue.PriorityQueue()
+    distances[0] = 0.0
+    queue.put((0.0, 0))
+    while not queue.empty():
+      dist, idx = queue.get()
+      if distances[idx] + EPS < dist:
+        continue  # deprecated branch
+      for i in range(n):
+        if distances[i] is None or distances[i] > distances[idx]:
+          euclid_dist = math.sqrt((point_set[i][0] - point_set[idx][0])**2 +
+                                  (point_set[i][1] - point_set[idx][1])**2)
+          if distances[i] is None or distances[i] > EPS + distances[idx] + euclid_dist:
+            if obstacle_manager.CanLineStringGo(LineString([point_set[i], point_set[idx]])):
+              distances[i] = distances[idx] + euclid_dist
+              queue.put((distances[i], i))
+    self.distances = distances
+    self.points = point_set
+    self.obstacle_manager = obstacle_manager
+
+
+  def Heuristic(self, point):
+    best = None
+    for p, dist in zip(self.points, self.distances):
+      if dist is not None:
+        if best is None or dist < best:
+          euc = math.sqrt((p[0] - point[0])**2 + (p[1] - point[1])**2)
+          if best is None or best > dist + euc:
+            if self.obstacle_manager.CanLineStringGo(LineString([p, point])):
+              best = dist + euc
+    if best is None:
+      return 10**9
+    return best
 
 
 class ObstacleManager(object):
@@ -173,7 +261,7 @@ class ObstacleManager(object):
     # Calculate the intersecting thingies for each circle.
     for circle in circles:
       intersections = []
-      for obstacle in obstacles:
+      for obstacle in obstacles.geoms:
         intersections.extend(geom_util.CirclePolygonIntersections(circle, obstacle))
 
       angles = []
@@ -184,6 +272,7 @@ class ObstacleManager(object):
         angles.append(0.0)
 
       angles.sort()
+
       # Remove angles that are approximately equal
       cleaned_angle = [angles[0]]
       for angle1, angle2 in zip(angles, angles[1:]):
@@ -197,12 +286,9 @@ class ObstacleManager(object):
         midangle = (p1 + dist / 2.0) % (math.pi * 2.0)
         point = circle.AngleToPoint(midangle)
         point = Point(point[0], point[1])
-        obstructed = False
-        for obstacle in obstacles:
-          if obstacle.contains(point):
-            obstructed = True
-            break
+        obstructed = self.obstacles.contains(point)
         is_obstructed.append(obstructed)
+
       circle.intersection_angles = angles
       circle.intersection_is_obstructed = is_obstructed
 
@@ -222,18 +308,15 @@ class ObstacleManager(object):
             geom_util.IsAngleBetween(arc._end_radian, angle1, angle2) or
             geom_util.IsAngleBetween(angle1, arc._begin_radian, arc._end_radian) or
             geom_util.IsAngleBetween(angle2, arc._begin_radian, arc._end_radian) or
-            abs(arc._begin_radian - angle1) <= EPS or
-            abs(arc._end_radian - angle2) <= EPS
+            geom_util.AngleAlmostEqual(arc._begin_radian, angle1) or
+            geom_util.AngleAlmostEqual(arc._end_radian, angle2)
             ):
           return False
     return True
 
 
   def CanLineStringGo(self, linestring):
-    for obstacle in self.obstacles:
-      if linestring.crosses(obstacle) or obstacle.contains(linestring):
-        return False
-    return True
+    return not linestring.crosses(self.obstacles) and not self.obstacles.contains(linestring)
 
 
 def ConstructPath(start_config,
@@ -253,6 +336,10 @@ def ConstructPath(start_config,
 
   It is assumed that if the boundaries of the field is given implicitly as
   obstacles.'''
+  obstacles = ops.cascaded_union(obstacles + boundary_obstacles)
+  if isinstance(obstacles, Polygon):
+    obstacles = MultiPolygon([obstacles])
+
   manager = ConfigurationManager()
   circles = _GenerateCirclesAndBasicConfig(start_config,
                                            goal_config,
@@ -260,8 +347,11 @@ def ConstructPath(start_config,
                                            turning_radius,
                                            manager,
                                            level)
+
   print '{0} circles generated. Running A*...'.format(len(circles))
-  obstacle_manager = ObstacleManager(obstacles + boundary_obstacles, circles)
+  obstacle_manager = ObstacleManager(obstacles, circles)
+
+  vis_graph = VisibilityGraph(obstacles, goal_config[0], obstacle_manager)
 
   # Next, run A* starting from the initial circle.
   queue = Queue.PriorityQueue()
@@ -272,7 +362,7 @@ def ConstructPath(start_config,
     config.best_value = new_value
     config.previous_config = previous_config
     config.paths = paths
-    queue.put((new_value + Heuristic(config, goal_config),
+    queue.put((new_value + Heuristic(config, goal_config, vis_graph),
                config))
 
   for init_config in manager.GetInitialConfigurations():
@@ -292,7 +382,6 @@ def ConstructPath(start_config,
 
     if config.processed_value is not None:
       re_expansions += 1
-      print config.processed_value, config.best_value
 
     config.processed_value = config.best_value
 

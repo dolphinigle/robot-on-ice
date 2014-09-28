@@ -17,7 +17,7 @@ class EngineTest(unittest.TestCase):
 
 
   def testAdjCircles(self):
-    circles = engine._AdjCircles(((2, 3), math.pi / 2.0), 4.0)
+    circles = engine._AdjCircles(((2, 3), math.pi / 2.0), 4.0, level=0)
     self.assertEquals(2, len(circles))
     self.assertAlmostEquals(circles[0].center[0], -2.0)
     self.assertAlmostEquals(circles[0].center[1], 3.0)
@@ -35,13 +35,6 @@ class EngineTest(unittest.TestCase):
     self.assertAlmostEquals(circle.center[0], 2)
     self.assertAlmostEquals(circle.center[1], 3)
     self.assertAlmostEquals(circle.radius, math.sqrt(2))
-
-
-  def testConstructPath(self):
-    path = engine.ConstructPath(self.start_config,
-                                self.goal_config,
-                                self.obstacles,)
-    self.assertTrue(path)
 
 
 if __name__ == "__main__":

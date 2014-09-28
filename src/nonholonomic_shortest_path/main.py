@@ -14,12 +14,11 @@ TIME_LIMIT = 60
 if __name__ == '__main__':
 
   def RunAll():
-    filename = '../../inputs/test_basic4.mp'
+    filename = '../../inputs/test4.mp'
     level = 0
     while True:
       print 'Level {0}'.format(level)
-      start_config, goal_config, obstacles = parse_input.ReadInput(filename,
-                                                                   enlargement=0.001)
+      start_config, goal_config, obstacles = parse_input.ReadInput(filename)
       additional_obstacles = [
           Polygon([(0, 0),
                    (0, 2),
@@ -51,6 +50,6 @@ if __name__ == '__main__':
         print 'Exceeded time limit. Stopping...',
         break
 
-  RunAll()
-  # import cProfile
-  # cProfile.run('RunAll()')
+  # RunAll()
+  import cProfile
+  cProfile.run('RunAll()')

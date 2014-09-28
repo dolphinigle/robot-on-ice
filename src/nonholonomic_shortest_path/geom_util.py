@@ -97,7 +97,7 @@ def ShortestToLine(line, point):
 def CircleLineSegmentIntersections(circle, segment):
   center = Point(circle.center[0], circle.center[1])
   distance = segment.distance(center)
-  if distance > circle.radius:
+  if distance > circle.radius + EPS:
     return []
 
   super_point = ShortestToLine(segment, circle.center)
@@ -112,29 +112,37 @@ def CircleLineSegmentIntersections(circle, segment):
     dist *= -1
 
   distance = center.distance(super_point_p)
-  if distance > circle.radius:
+  if distance > circle.radius + EPS:
     return []
 
-  front_side = math.sqrt(circle.radius**2 - distance**2)
+  val = circle.radius**2 - distance**2
+  if val < 0:
+    val = 0
+  front_side = math.sqrt(val)
   intersections = []
   for i in range(-1, 2, 2):
-    if i == 1 and not front_side:
+    if i == 1 and front_side < EPS:
       break
 
     new_dist = dist + front_side * i
-    if new_dist < 0 or new_dist > segment.length:
+    if new_dist < -EPS or new_dist > segment.length + EPS:
       continue
     intersection_point = segment.interpolate(new_dist)
     intersections.append([intersection_point.x, intersection_point.y])
   return intersections
 
 
+def CrossProd(p1, p2, p3):
+  return p1[0] * p2[1] + p2[0] * p3[1] + p3[0] * p1[1] - p1[1] * p2[0] - p2[1] * p3[0] - p3[1] * p1[0]
+
+
 def CirclePolygonIntersections(circle, polygon):
   '''Returns all points of intersections between circle and polygon'''
-  coords = polygon.exterior.coords
   intersections = []
-  for p1, p2 in zip(coords, coords[1:]):
-    intersections.extend(CircleLineSegmentIntersections(circle, LineString((p1, p2))))
+  for coords in list(map(lambda interior: interior.coords, polygon.interiors)) + [polygon.exterior.coords]:
+    for p1, p2 in zip(coords, coords[1:]):
+      intersections.extend(CircleLineSegmentIntersections(circle, LineString((p1, p2))))
+
   return intersections
 
 
@@ -200,10 +208,18 @@ def CircleIntersects(circle1, circle2):
 
 
 def IsAngleBetween(angle, lb, ub):
-  if abs(angle - lb) <= EPS or abs(angle - ub) <= EPS:
+  if abs(angle - lb) < EPS or abs(angle - ub) < EPS:
     return False
   delta1 = (angle - lb) % ANGLE_MOD
   delta2 = (ub - angle) % ANGLE_MOD
   delta = (ub - lb) % ANGLE_MOD
   return abs(delta1 + delta2 - delta) <= EPS
+
+
+def AngleAlmostEqual(angle1, angle2):
+  if abs(angle1 - angle2) < EPS:
+    return True
+  if abs(abs(angle1 - angle2) - ANGLE_MOD) < EPS:
+    return True
+  return False
 
