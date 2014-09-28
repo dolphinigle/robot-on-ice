@@ -8,6 +8,7 @@ from shapely.geometry.point import Point
 from nonholonomic_shortest_path import geom_util
 from nonholonomic_shortest_path.geom_util import Circle, CLOCKWISE, \
   COUNTER_CLOCKWISE, ANGLE_MOD, EPS
+from sympy.printing.pretty.pretty_symbology import CLO
 
 
 MAX_TURNING_ANGLE = math.pi / 4.0
@@ -32,41 +33,20 @@ class Configuration(object):
   def __init__(self,
                pk,
                circle,
-               direction,  # geom_util.CLOCKWISE or geom_util.COUNTER_CLOCKWISE
-               origin_configuration=None,
+               angle,
                is_init=False,
                is_goal=False,
-               point=None,  # point of the thing. Applicable only on is_init and is_goal.
-               tangent_direction=None,
                ):
     self.pk = pk
     self.best_value = None
     self.processed_value = None
     self.previous_config = None
-    assert direction in [CLOCKWISE, COUNTER_CLOCKWISE]
-    assert origin_configuration or is_init or is_goal
-    if point:
-      assert is_init or is_goal
-    else:
-      assert origin_configuration
-    if origin_configuration:
-      assert point is None
-      assert tangent_direction is not None
 
     self.circle = circle
-    self.direction = direction
-    self.origin_configuration = origin_configuration
     self.is_init = is_init
     self.is_goal = is_goal
 
-    if is_init or is_goal:
-      self.angle = circle.PointToAngle(point)
-    else:
-      self.origin_angle, self.angle = geom_util.GetTangentLine(
-          origin_configuration.circle,
-          origin_configuration.direction,
-          circle,
-          tangent_direction)
+    self.angle = angle
 
 
 class ConfigurationManager(object):
@@ -79,38 +59,36 @@ class ConfigurationManager(object):
     return [config for config in self.configurations if config.is_init]
 
   def GetTwoCirclesConfig(self,
-                          origin_config,
+                          circle,
                           target_circle,
-                          target_direction,
-                          tangent_direction,):
-    key = (origin_config.circle.pk, target_circle, origin_config.direction, target_direction, tangent_direction,)
+                          origin_dir,
+                          target_dir,):
+    key = (circle.pk, target_circle.pk, origin_dir, target_dir)
     if key in self.circle_pair_to_config:
       return self.circle_pair_to_config[key]
+    angle1, angle2 = geom_util.GetTangentLine(circle, origin_dir,
+                                              target_circle, target_dir)
     config = Configuration(len(self.configurations),
                            target_circle,
-                           target_direction,
-                           origin_config,
-                           tangent_direction=tangent_direction,)
+                           angle2,)
     self.configurations.append(config)
-    self.circle_pair_to_config[key] = config
-    return config
+    self.circle_pair_to_config[key] = (config, angle1)
+    return config, angle1
 
-  def CreateInitConfig(self, circle, direction, start_point):
+  def CreateInitConfig(self, circle, start_point):
     config = Configuration(
         len(self.configurations),
         circle,
-        direction,
-        is_init=True,
-        point=start_point)
+        angle=circle.PointToAngle(start_point),
+        is_init=True)
     self.configurations.append(config)
 
-  def CreateEndConfig(self, circle, direction, goal_point):
+  def CreateEndConfig(self, circle, goal_point):
     config = Configuration(
         len(self.configurations),
         circle,
-        direction,
-        is_goal=True,
-        point=goal_point)
+        angle=circle.PointToAngle(goal_point),
+        is_goal=True,)
     self.configurations.append(config)
     self.circle_end_configs[circle.pk].append(config)
 
@@ -118,7 +96,8 @@ class ConfigurationManager(object):
 def _AdjCircles(configuration, radius):
   '''Generate the two indexed adjacent circles to the configuration.'''
   angles = [(configuration[1] + math.pi / 2.0) % ANGLE_MOD,
-            (configuration[1] - math.pi / 2.0) % ANGLE_MOD]
+            (configuration[1] - math.pi / 2.0) % ANGLE_MOD,
+            ]
   circles = []
   for angle in angles:
     circles.append(IndexedCircle(center=(configuration[0][0] + math.cos(angle) * radius,
@@ -151,10 +130,10 @@ def _GenerateCirclesAndBasicConfig(start_config,
   # First generate two circles adjacent to the start and goal configs.
   circles.extend(_AdjCircles(start_config, turning_radius))
   circles.extend(_AdjCircles(goal_config, turning_radius))
-  manager.CreateInitConfig(circles[0], COUNTER_CLOCKWISE, start_config[0])
-  manager.CreateInitConfig(circles[1], CLOCKWISE, start_config[0])
-  manager.CreateEndConfig(circles[2], COUNTER_CLOCKWISE, goal_config[0])
-  manager.CreateEndConfig(circles[3], CLOCKWISE, goal_config[0])
+  manager.CreateInitConfig(circles[0], start_config[0])
+  manager.CreateInitConfig(circles[1], start_config[0])
+  manager.CreateEndConfig(circles[2], goal_config[0])
+  manager.CreateEndConfig(circles[3], goal_config[0])
 
   fracts = []
   if level == 0:
@@ -262,7 +241,6 @@ def ConstructPath(start_config,
                   obstacles,
                   boundary_obstacles,
                   level,  # Level 0 is fastest, 1 is twice slower, 2 is 4 times slower, and so forth.
-                  can_change_direction=False,
                   turning_radius=TURNING_RADIUS,
                   ):
   '''
@@ -311,8 +289,11 @@ def ConstructPath(start_config,
     if config.processed_value is not None and config.best_value + EPS >= config.processed_value:
       # Already processed.
       continue
+
     if config.processed_value is not None:
       re_expansions += 1
+      print config.processed_value, config.best_value
+
     config.processed_value = config.best_value
 
     if config.is_goal:
@@ -322,41 +303,55 @@ def ConstructPath(start_config,
 
     for goal in manager.circle_end_configs[config.circle.pk]:
       assert goal.circle.pk == config.circle.pk
-      if goal.direction != config.direction:
-        continue
-      arc = geom_util.Arc(center=goal.circle.center,
-                          radius=goal.circle.radius,
-                          begin_radian=config.angle,
-                          end_radian=goal.angle,
-                          direction=goal.direction,
-                          circle_pk=goal.circle.pk)
-      if obstacle_manager.CanArcGo(arc):
-        PutToQueue(goal, config.best_value + arc.Length(), config, paths=[arc])
+
+      for direction in [CLOCKWISE, COUNTER_CLOCKWISE]:
+        arc = geom_util.Arc(center=goal.circle.center,
+                            radius=goal.circle.radius,
+                            begin_radian=config.angle,
+                            end_radian=goal.angle,
+                            direction=direction,
+                            circle_pk=goal.circle.pk)
+        if obstacle_manager.CanArcGo(arc):
+          PutToQueue(goal, config.best_value + arc.Length(), config, paths=[arc])
 
     for circle in circles:
       if circle.pk == config.circle.pk:
         continue  # Prevent moving in the same circle.
 
-      for direction in [COUNTER_CLOCKWISE, CLOCKWISE]:
-        if direction != config.direction and geom_util.CircleIntersects(circle, config.circle):
-          continue  # not possible to change direction on intersecting circles.
+      # Try all four combinations
+      for init_direction in [COUNTER_CLOCKWISE, CLOCKWISE]:
+        for target_direction in [COUNTER_CLOCKWISE, CLOCKWISE]:
+          if init_direction != target_direction and geom_util.CircleIntersects(config.circle, circle):
+            continue
+          next_config, angle = manager.GetTwoCirclesConfig(
+              config.circle, circle, init_direction, target_direction)
 
-        next_config = manager.GetTwoCirclesConfig(
-            config, circle, direction, direction)
-        arc = geom_util.Arc(center=config.circle.center,
-                            radius=config.circle.radius,
-                            begin_radian=config.angle,
-                            end_radian=next_config.origin_angle,
-                            direction=config.direction,
-                            circle_pk=config.circle.pk)
-        segment = LineString([config.circle.AngleToPoint(next_config.origin_angle),
-                              next_config.circle.AngleToPoint(next_config.angle)])
-        if obstacle_manager.CanArcGo(arc) and obstacle_manager.CanLineStringGo(segment):
-          PutToQueue(next_config, config.best_value + arc.Length() + segment.length, config, paths=[arc, segment])
-          if can_change_direction:
-            alt_config = manager.GetTwoCirclesConfig(config, circle, 1 - direction, direction)
-            PutToQueue(alt_config, config.best_value + arc.Length() + segment.length, config, paths=[arc, segment])
+          # First attempt the arc movement.
+          arcs = []
+          for arc_direction in [COUNTER_CLOCKWISE, CLOCKWISE]:
+            arcs.append(geom_util.Arc(center=config.circle.center,
+                                      radius=config.circle.radius,
+                                      begin_radian=config.angle,
+                                      end_radian=angle,
+                                      direction=arc_direction,
+                                      circle_pk=config.circle.pk))
+          valids = [arc for arc in arcs if obstacle_manager.CanArcGo(arc)]
 
+          if not valids:
+            continue
+
+          best_arc = valids[0]
+          if len(valids) == 2 and valids[1].Length() < valids[0].Length():
+            best_arc = valids[1]
+
+          segment = LineString([config.circle.AngleToPoint(angle),
+                                next_config.circle.AngleToPoint(next_config.angle)])
+
+          new_value = config.best_value + best_arc.Length() + segment.length
+          if next_config.best_value is None or next_config.best_value > new_value + EPS:
+            if obstacle_manager.CanLineStringGo(segment):
+              PutToQueue(next_config, new_value, config, paths=[best_arc, segment])
+    
   print 'Expanded {0} nodes. {1} re-expansions.'.format(expansions, re_expansions)
   if not found_goal:
     return None, None

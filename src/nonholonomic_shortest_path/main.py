@@ -14,7 +14,7 @@ TIME_LIMIT = 60
 if __name__ == '__main__':
 
   def RunAll():
-    filename = '../../inputs/test5.mp'
+    filename = '../../inputs/test_basic4.mp'
     level = 0
     while True:
       print 'Level {0}'.format(level)
@@ -38,8 +38,7 @@ if __name__ == '__main__':
                                           goal_config,
                                           obstacles,
                                           additional_obstacles,
-                                          level=level,
-                                          can_change_direction=True)
+                                          level=level,)
       end_time = time.clock()
       elapsed_time = end_time - start_time
       print '{0} seconds: length is {1}'.format(elapsed_time, length)
