@@ -208,12 +208,11 @@ def CircleIntersects(circle1, circle2):
 
 
 def IsAngleBetween(angle, lb, ub):
-  if abs(angle - lb) < EPS or abs(angle - ub) < EPS:
-    return False
-  delta1 = (angle - lb) % ANGLE_MOD
-  delta2 = (ub - angle) % ANGLE_MOD
-  delta = (ub - lb) % ANGLE_MOD
-  return abs(delta1 + delta2 - delta) <= EPS
+  if ub < lb:
+    ub += ANGLE_MOD
+  if angle < lb:
+    angle += ANGLE_MOD
+  return lb + EPS < angle < ub - EPS
 
 
 def AngleAlmostEqual(angle1, angle2):

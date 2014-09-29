@@ -3,7 +3,7 @@
 </Start>
 
 <Goal>
-1 1 3.15
+1 1 0
 </Goal>
 
 <Obstacle>

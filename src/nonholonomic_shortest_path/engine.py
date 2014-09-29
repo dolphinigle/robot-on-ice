@@ -14,14 +14,13 @@ from nonholonomic_shortest_path.geom_util import Circle, ANGLE_MOD, EPS, \
   CLOCKWISE, COUNTER_CLOCKWISE
 
 
+HEURISTIC_EUCLID = 'EUCLID'
+HEURISTIC_VIS = 'VIS'
+HEURISTIC = HEURISTIC_EUCLID
 MAX_TURNING_ANGLE = math.pi / 4.0
 VEHICLE_LENGTH = 0.1
 TURNING_RADIUS = VEHICLE_LENGTH / math.sin(MAX_TURNING_ANGLE)
 BOUNDARIES = [-0.5, 1.5]
-
-
-def GenFractions(level):
-  pass
 
 
 class IndexedCircle(Circle):
@@ -70,12 +69,20 @@ class ConfigurationManager(object):
                           circle,
                           target_circle,
                           origin_dir,
-                          target_dir,):
+                          target_dir,
+                          obstacle_manager):
     key = (circle.pk, target_circle.pk, origin_dir, target_dir)
     if key in self.circle_pair_to_config:
       return self.circle_pair_to_config[key]
     angle1, angle2 = geom_util.GetTangentLine(circle, origin_dir,
                                               target_circle, target_dir)
+
+    if not obstacle_manager.CanLineStringGo(LineString([
+        circle.AngleToPoint(angle1),
+        target_circle.AngleToPoint(angle2)])):
+      self.circle_pair_to_config[key] = None
+      return None
+
     config = Configuration(len(self.configurations),
                            target_circle,
                            angle2,)
@@ -130,10 +137,14 @@ def _GenerateCircle(linestring, angle_fraction, radius, mirror=False):
                             radius=radius)
   begin_angle = circle.PointToAngle(linestring.coords[2])
   end_angle = circle.PointToAngle(linestring.coords[0])
+  if mirror:
+    mirror_begin_angle = (end_angle + math.pi / 2.0) % ANGLE_MOD
+    mirror_end_angle = (begin_angle - math.pi / 2.0) % ANGLE_MOD
+    begin_angle = mirror_begin_angle
+    end_angle = mirror_end_angle
+
   delta = (end_angle - begin_angle) % ANGLE_MOD
   at_angle = (begin_angle + angle_fraction * delta) % ANGLE_MOD
-  if mirror:
-    at_angle = (ANGLE_MOD - at_angle)
   return IndexedCircle(center=circle.AngleToPoint(at_angle),
                        radius=radius)
 
@@ -154,7 +165,6 @@ def _GenerateCirclesAndBasicConfig(start_config,
   circles.extend(begins)
   circles.extend(ends)
 
-  fracts = GenFractions(level)
   if level == 0:
     fracts = [0.5]
   else:
@@ -194,13 +204,15 @@ def EuclidHeuristic(config, goal_config, *args, **kwargs):
 
 
 def VisibilityGraphHeuristic(config, goal_config, vis_graph):
-  return EuclidHeuristic(config, goal_config)
-  # return vis_graph.Heuristic(config.circle.AngleToPoint(config.angle))
+  return vis_graph.HeuristicSlow(config.circle.AngleToPoint(config.angle))
+  # return vis_graph.Heuristic(config.circle) - config.circle.radius
 
 
 def Heuristic(config, goal_config, *args, **kwargs):
-  # return EuclidHeuristic(config, goal_config, *args, **kwargs)
-  return VisibilityGraphHeuristic(config, goal_config, *args, **kwargs)
+  if HEURISTIC == HEURISTIC_EUCLID:
+    return EuclidHeuristic(config, goal_config, *args, **kwargs)
+  else:
+    return VisibilityGraphHeuristic(config, goal_config, *args, **kwargs)
 
 
 class VisibilityGraph(object):
@@ -237,9 +249,11 @@ class VisibilityGraph(object):
     self.distances = distances
     self.points = point_set
     self.obstacle_manager = obstacle_manager
+    self.circle_cache = {}
+    self.goal_point = goal_point
 
 
-  def Heuristic(self, point):
+  def HeuristicSlow(self, point):
     best = None
     for p, dist in zip(self.points, self.distances):
       if dist is not None:
@@ -249,7 +263,34 @@ class VisibilityGraph(object):
             if self.obstacle_manager.CanLineStringGo(LineString([p, point])):
               best = dist + euc
     if best is None:
-      return 10**9
+      best = 10**9
+    return best
+
+
+
+  def Heuristic(self, circle):
+    if circle.pk in self.circle_cache:
+      return self.circle_cache[circle.pk]
+
+    if self.obstacle_manager.obstacles.contains(Point(circle.center[0],
+                                                      circle.center[1])):
+      # :O
+      best = Distance(circle.center, self.goal_point)
+      self.circle_cache[circle.pk] = best
+      return best
+
+    point = circle.center
+    best = None
+    for p, dist in zip(self.points, self.distances):
+      if dist is not None:
+        if best is None or dist < best:
+          euc = math.sqrt((p[0] - point[0])**2 + (p[1] - point[1])**2)
+          if best is None or best > dist + euc:
+            if self.obstacle_manager.CanLineStringGo(LineString([p, point])):
+              best = dist + euc
+    if best is None:
+      best = 10**9
+    self.circle_cache[circle.pk] = best
     return best
 
 
@@ -296,6 +337,8 @@ class ObstacleManager(object):
     for circle in circles:
       self.circle_pk_to_circle[circle.pk] = circle
 
+    self.tangent_cache = {}
+
   def CanArcGo(self, arc):
     assert arc.circle_pk is not None
     circle = self.circle_pk_to_circle[arc.circle_pk]
@@ -314,10 +357,8 @@ class ObstacleManager(object):
           return False
     return True
 
-
   def CanLineStringGo(self, linestring):
     return not linestring.crosses(self.obstacles) and not self.obstacles.contains(linestring)
-
 
 def ConstructPath(start_config,
                   goal_config,
@@ -351,7 +392,10 @@ def ConstructPath(start_config,
   print '{0} circles generated. Running A*...'.format(len(circles))
   obstacle_manager = ObstacleManager(obstacles, circles)
 
-  vis_graph = VisibilityGraph(obstacles, goal_config[0], obstacle_manager)
+  if HEURISTIC == HEURISTIC_EUCLID:
+    vis_graph = None
+  else:
+    vis_graph = VisibilityGraph(obstacles, goal_config[0], obstacle_manager)
 
   # Next, run A* starting from the initial circle.
   queue = Queue.PriorityQueue()
@@ -412,8 +456,11 @@ def ConstructPath(start_config,
         for target_direction in [COUNTER_CLOCKWISE, CLOCKWISE]:
           if init_direction != target_direction and geom_util.CircleIntersects(config.circle, circle):
             continue
-          next_config, angle = manager.GetTwoCirclesConfig(
-              config.circle, circle, init_direction, target_direction)
+          val = manager.GetTwoCirclesConfig(
+              config.circle, circle, init_direction, target_direction, obstacle_manager)
+          if not val:
+            continue
+          next_config, angle = val
 
           # First attempt the arc movement.
           arcs = []
@@ -438,8 +485,7 @@ def ConstructPath(start_config,
 
           new_value = config.best_value + best_arc.Length() + segment.length
           if next_config.best_value is None or next_config.best_value > new_value + EPS:
-            if obstacle_manager.CanLineStringGo(segment):
-              PutToQueue(next_config, new_value, config, paths=[best_arc, segment])
+            PutToQueue(next_config, new_value, config, paths=[best_arc, segment])
     
   print 'Expanded {0} nodes. {1} re-expansions.'.format(expansions, re_expansions)
   if not found_goal:

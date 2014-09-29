@@ -37,6 +37,27 @@ class EngineTest(unittest.TestCase):
     self.assertAlmostEquals(circle.radius, math.sqrt(2))
 
 
+    circle = engine._GenerateCircle(
+        LineString([(1, 3), (1, 2), (2, 2)]),
+        0.5,
+        radius=math.sqrt(2),
+        mirror=True)
+    self.assertAlmostEquals(circle.center[0], 0)
+    self.assertAlmostEquals(circle.center[1], 1)
+    self.assertAlmostEquals(circle.radius, math.sqrt(2))
+
+
+    circle = engine._GenerateCircle(
+        LineString([(0, -1), (0, 0), (-1, -1)]),
+        1.0 / 3.0,
+        radius=math.sqrt(2),
+        mirror=True)
+    self.assertAlmostEquals(circle.center[0], 1)
+    self.assertAlmostEquals(circle.center[1], 1)
+    self.assertAlmostEquals(circle.radius, math.sqrt(2))
+
+
+
 if __name__ == "__main__":
   #import sys;sys.argv = ['', 'Test.testName']
   unittest.main()

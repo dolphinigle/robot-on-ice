@@ -9,15 +9,14 @@ from shapely.geometry.polygon import Polygon
 
 from nonholonomic_shortest_path import draw, parse_input, engine
 
-TIME_LIMIT = 60
+TIME_LIMIT = 30
 
 if __name__ == '__main__':
 
-  def RunAll():
-    filename = '../../inputs/test4.mp'
+  def RunAll(filename):
     level = 0
-    while True:
-      print 'Level {0}'.format(level)
+    while level < 8:
+      print 'Level {0} ({1})'.format(level, filename)
       start_config, goal_config, obstacles = parse_input.ReadInput(filename)
       additional_obstacles = [
           Polygon([(0, 0),
@@ -50,6 +49,19 @@ if __name__ == '__main__':
         print 'Exceeded time limit. Stopping...',
         break
 
-  # RunAll()
-  import cProfile
-  cProfile.run('RunAll()')
+  filename_dir = '../../inputs/'
+
+  filenames = ['test1.mp',
+               'test2.mp',
+               'test3.mp',
+               'test4.mp',
+               'test5.mp',
+               'test6.mp']
+
+  filenames = ['test4.mp']
+
+  for filename in filenames:
+    RunAll(filename_dir + filename)
+  # RunAll(filename_dir + 'test5.mp')
+  # import cProfile
+  # cProfile.run("RunAll(filename_dir + 'test5.mp')")
