@@ -58,7 +58,7 @@ if __name__ == '__main__':
                'test5.mp',
                'test6.mp']
 
-  filenames = ['test4.mp']
+  filenames = ['test5.mp']
 
   for filename in filenames:
     RunAll(filename_dir + filename)

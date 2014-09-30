@@ -135,16 +135,20 @@ def _GenerateCircle(linestring, angle_fraction, radius, mirror=False):
   It will touch the vertex.'''
   circle = geom_util.Circle(center=linestring.coords[1],
                             radius=radius)
-  begin_angle = circle.PointToAngle(linestring.coords[2])
-  end_angle = circle.PointToAngle(linestring.coords[0])
-  if mirror:
-    mirror_begin_angle = (end_angle + math.pi / 2.0) % ANGLE_MOD
-    mirror_end_angle = (begin_angle - math.pi / 2.0) % ANGLE_MOD
-    begin_angle = mirror_begin_angle
-    end_angle = mirror_end_angle
+  begin_angle = circle.PointToAngle(linestring.coords[0])
+  end_angle = circle.PointToAngle(linestring.coords[2])
+
+  real_begin_angle = (begin_angle - math.pi / 2.0) % ANGLE_MOD
+  real_end_angle = (end_angle + math.pi / 2.0) % ANGLE_MOD
+  begin_angle = real_begin_angle
+  end_angle = real_end_angle
 
   delta = (end_angle - begin_angle) % ANGLE_MOD
+
   at_angle = (begin_angle + angle_fraction * delta) % ANGLE_MOD
+  if mirror:
+    at_angle = (at_angle + math.pi) % ANGLE_MOD
+
   return IndexedCircle(center=circle.AngleToPoint(at_angle),
                        radius=radius)
 
