@@ -12,7 +12,6 @@ from nonholonomic_shortest_path import draw, parse_input, engine
 TIME_LIMIT = 30
 
 if __name__ == '__main__':
-
   def RunAll(filename):
     level = 0
     while level < 8:
@@ -58,10 +57,11 @@ if __name__ == '__main__':
                'test5.mp',
                'test6.mp']
 
-  filenames = ['test5.mp']
+  filenames = ['test_basic12.mp']
 
   for filename in filenames:
     RunAll(filename_dir + filename)
+
   # RunAll(filename_dir + 'test5.mp')
   # import cProfile
   # cProfile.run("RunAll(filename_dir + 'test5.mp')")

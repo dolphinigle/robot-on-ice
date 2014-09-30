@@ -41,6 +41,7 @@ class Configuration(object):
                pk,
                circle,
                angle,
+               direction,
                is_init=False,
                is_goal=False,
                ):
@@ -54,6 +55,7 @@ class Configuration(object):
     self.is_goal = is_goal
 
     self.angle = angle
+    self.direction = direction
 
 
 class ConfigurationManager(object):
@@ -70,8 +72,9 @@ class ConfigurationManager(object):
                           target_circle,
                           origin_dir,
                           target_dir,
-                          obstacle_manager):
-    key = (circle.pk, target_circle.pk, origin_dir, target_dir)
+                          obstacle_manager,
+                          direction):
+    key = (circle.pk, target_circle.pk, origin_dir, target_dir, direction)
     if key in self.circle_pair_to_config:
       return self.circle_pair_to_config[key]
     angle1, angle2 = geom_util.GetTangentLine(circle, origin_dir,
@@ -85,24 +88,27 @@ class ConfigurationManager(object):
 
     config = Configuration(len(self.configurations),
                            target_circle,
-                           angle2,)
+                           angle2,
+                           direction,)
     self.configurations.append(config)
     self.circle_pair_to_config[key] = (config, angle1)
     return config, angle1
 
-  def CreateInitConfig(self, circle, start_point):
+  def CreateInitConfig(self, circle, start_point, direction):
     config = Configuration(
         len(self.configurations),
         circle,
         angle=circle.PointToAngle(start_point),
+        direction=direction,
         is_init=True)
     self.configurations.append(config)
 
-  def CreateEndConfig(self, circle, goal_point):
+  def CreateEndConfig(self, circle, goal_point, direction):
     config = Configuration(
         len(self.configurations),
         circle,
         angle=circle.PointToAngle(goal_point),
+        direction=direction,
         is_goal=True,)
     self.configurations.append(config)
     self.circle_end_configs[circle.pk].append(config)
@@ -164,8 +170,8 @@ def _GenerateCirclesAndBasicConfig(start_config,
   begins = _AdjCircles(start_config, turning_radius, level)
   ends = _AdjCircles(goal_config, turning_radius, level)
   for i in range(2):
-    manager.CreateInitConfig(begins[i], start_config[0])
-    manager.CreateEndConfig(ends[i], goal_config[0])
+    manager.CreateInitConfig(begins[i], start_config[0], 1 - i)
+    manager.CreateEndConfig(ends[i], goal_config[0], 1 - i)
   circles.extend(begins)
   circles.extend(ends)
 
@@ -440,8 +446,9 @@ def ConstructPath(start_config,
 
     for goal in manager.circle_end_configs[config.circle.pk]:
       assert goal.circle.pk == config.circle.pk
-
-      for direction in [CLOCKWISE, COUNTER_CLOCKWISE]:
+      if goal.direction != config.direction:
+        continue
+      for direction in [COUNTER_CLOCKWISE, CLOCKWISE]:
         arc = geom_util.Arc(center=goal.circle.center,
                             radius=goal.circle.radius,
                             begin_radian=config.angle,
@@ -460,8 +467,12 @@ def ConstructPath(start_config,
         for target_direction in [COUNTER_CLOCKWISE, CLOCKWISE]:
           if init_direction != target_direction and geom_util.CircleIntersects(config.circle, circle):
             continue
+          if init_direction == config.direction:
+            new_dir = target_direction
+          else:
+            new_dir = 1 - target_direction
           val = manager.GetTwoCirclesConfig(
-              config.circle, circle, init_direction, target_direction, obstacle_manager)
+              config.circle, circle, init_direction, target_direction, obstacle_manager, new_dir)
           if not val:
             continue
           next_config, angle = val
