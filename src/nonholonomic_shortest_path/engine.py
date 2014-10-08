@@ -16,18 +16,20 @@ from nonholonomic_shortest_path.geom_util import Circle, ANGLE_MOD, EPS, \
 
 HEURISTIC_EUCLID = 'EUCLID'
 HEURISTIC_VIS = 'VIS'
-HEURISTIC = HEURISTIC_EUCLID
+HEURISTIC = HEURISTIC_VIS
 MAX_TURNING_ANGLE = math.pi / 4.0
 VEHICLE_LENGTH = 0.1
 TURNING_RADIUS = VEHICLE_LENGTH / math.sin(MAX_TURNING_ANGLE)
 BOUNDARIES = [-0.5, 1.5]
+IMPOSSIBLE = 'BAD'
 
 
 class IndexedCircle(Circle):
   pk_counter = 0
-  def __init__(self, *args, **kwargs):
+  def __init__(self, origin_vertex_angle_if_any, *args, **kwargs):
     super(IndexedCircle, self).__init__(*args, **kwargs)
     self.pk = IndexedCircle.pk_counter
+    self.origin_vertex_angle_if_any = origin_vertex_angle_if_any
     IndexedCircle.pk_counter += 1
 
 
@@ -128,7 +130,8 @@ def _AdjCircles(configuration, radius, level):
 
   circles = []
   for angle in angles:
-    circles.append(IndexedCircle(center=(configuration[0][0] + math.cos(angle) * radius,
+    circles.append(IndexedCircle(origin_vertex_angle_if_any=None,
+                                 center=(configuration[0][0] + math.cos(angle) * radius,
                                          configuration[0][1] + math.sin(angle) * radius),
                                  radius=radius))
 
@@ -155,7 +158,8 @@ def _GenerateCircle(linestring, angle_fraction, radius, mirror=False):
   if mirror:
     at_angle = (at_angle + math.pi) % ANGLE_MOD
 
-  return IndexedCircle(center=circle.AngleToPoint(at_angle),
+  return IndexedCircle(origin_vertex_angle_if_any=(at_angle + math.pi) % ANGLE_MOD,
+                       center=circle.AngleToPoint(at_angle),
                        radius=radius)
 
 
@@ -214,8 +218,8 @@ def EuclidHeuristic(config, goal_config, *args, **kwargs):
 
 
 def VisibilityGraphHeuristic(config, goal_config, vis_graph):
-  return vis_graph.HeuristicSlow(config.circle.AngleToPoint(config.angle))
-  # return vis_graph.Heuristic(config.circle) - config.circle.radius
+  # return vis_graph.HeuristicSlow(config.circle.AngleToPoint(config.angle))
+  return vis_graph.Heuristic(config.circle, config.circle.AngleToPoint(config.angle))
 
 
 def Heuristic(config, goal_config, *args, **kwargs):
@@ -259,6 +263,7 @@ class VisibilityGraph(object):
     self.distances = distances
     self.points = point_set
     self.obstacle_manager = obstacle_manager
+    self.obstacles = obstacles
     self.circle_cache = {}
     self.goal_point = goal_point
 
@@ -273,25 +278,48 @@ class VisibilityGraph(object):
             if self.obstacle_manager.CanLineStringGo(LineString([p, point])):
               best = dist + euc
     if best is None:
-      best = 10**9
+      return 10**9
     return best
 
 
 
-  def Heuristic(self, circle):
+  def Heuristic(self, circle, point):
     if circle.pk in self.circle_cache:
-      return self.circle_cache[circle.pk]
+      blockeds = self.circle_cache[circle.pk]
+    else:
 
-    if self.obstacle_manager.obstacles.contains(Point(circle.center[0],
-                                                      circle.center[1])):
-      # :O
-      best = Distance(circle.center, self.goal_point)
-      self.circle_cache[circle.pk] = best
-      return best
+      to_tries = []
+      for polygon in self.obstacles.geoms:
+        for coords in list(map(lambda interior: interior.coords, polygon.interiors)) + [polygon.exterior.coords]:
+          for p1, p2 in zip(coords, coords[1:]):
+            if geom_util.CircleLineSegmentIntersections(circle, LineString([p1, p2])):
+              continue
+            to_tries.append([p1, p2])
 
-    point = circle.center
+      center = circle.center
+      blockeds = []
+      for p in self.points:
+        blocked = False
+        if circle.radius**2 + EPS < (p[0] - center[0])**2 + (p[1] - center[1])**2:
+          # not inside circle
+          # Get the two tangent lines
+          angle1 = geom_util.GetTangentLinePoint(circle, is_circle1_ccw=True, point=p)
+          angle2 = geom_util.GetTangentLinePoint(circle, is_circle1_ccw=True, point=p)
+          line1 = [p, circle.AngleToPoint(angle1)]
+          line2 = [p, circle.AngleToPoint(angle2)]
+          for p1, p2 in to_tries:
+            if (geom_util.LineSegmentIntersectStrict(line1, [p1, p2]) and
+                geom_util.LineSegmentIntersectStrict(line2, [p1, p2])):
+              blocked = True
+              break
+
+        blockeds.append(blocked)
+      self.circle_cache[circle.pk] = blockeds
+
     best = None
-    for p, dist in zip(self.points, self.distances):
+    for p, dist, blocked in zip(self.points, self.distances, blockeds):
+      if blocked:
+        continue
       if dist is not None:
         if best is None or dist < best:
           euc = math.sqrt((p[0] - point[0])**2 + (p[1] - point[1])**2)
@@ -299,9 +327,10 @@ class VisibilityGraph(object):
             if self.obstacle_manager.CanLineStringGo(LineString([p, point])):
               best = dist + euc
     if best is None:
-      best = 10**9
-    self.circle_cache[circle.pk] = best
+      return 10**9
     return best
+
+
 
 
 class ObstacleManager(object):
@@ -340,6 +369,38 @@ class ObstacleManager(object):
         obstructed = self.obstacles.contains(point)
         is_obstructed.append(obstructed)
 
+      def MergeConsecutiveRanges(angles, is_obstructed):
+        if len(angles) >= 2:
+          # Merge continuous obstructed
+          combined_angles = [angles[0], angles[1]]
+          combined_obs = [is_obstructed[0]]
+          for p, o in zip(angles[2:] + angles[:1], is_obstructed[1:]):
+            if o == combined_obs[-1]:
+              combined_angles[-1] = p
+            else:
+              combined_angles.append(p)
+              combined_obs.append(o)
+          assert combined_angles[-1] == combined_angles[0]
+          angles = combined_angles[:-1]
+          is_obstructed = combined_obs
+          if len(angles) >= 2 and is_obstructed[0] == is_obstructed[-1]:
+            angles = angles[1:]
+            is_obstructed = is_obstructed[1:]
+          return angles, is_obstructed
+        else:
+          return angles, is_obstructed
+
+      angles, is_obstructed = MergeConsecutiveRanges(angles, is_obstructed)
+      for i, (p1, p2) in enumerate(zip(angles, angles[1:] + angles[:1])):
+        origin_angle = circle.origin_vertex_angle_if_any
+        if (origin_angle is not None and
+            not (geom_util.IsAngleBetween(origin_angle, p1, p2) or
+                 abs(p1 - origin_angle) <= EPS or
+                 abs(p2 - origin_angle) <= EPS )):
+          is_obstructed[i] = True
+
+      angles, is_obstructed = MergeConsecutiveRanges(angles, is_obstructed)
+
       circle.intersection_angles = angles
       circle.intersection_is_obstructed = is_obstructed
 
@@ -352,6 +413,9 @@ class ObstacleManager(object):
   def CanArcGo(self, arc):
     assert arc.circle_pk is not None
     circle = self.circle_pk_to_circle[arc.circle_pk]
+    if len(circle.intersection_angles) == 1:
+      return not circle.intersection_is_obstructed[0]
+
     for angle1, angle2, is_obstructed in zip(
         circle.intersection_angles,
         circle.intersection_angles[1:] + circle.intersection_angles[:1],
@@ -410,13 +474,21 @@ def ConstructPath(start_config,
   # Next, run A* starting from the initial circle.
   queue = Queue.PriorityQueue()
 
+  heuristic_cache = {}
   def PutToQueue(config, new_value, previous_config, paths=None):
     if config.best_value is not None and config.best_value < new_value + EPS:
       return
     config.best_value = new_value
     config.previous_config = previous_config
     config.paths = paths
-    queue.put((new_value + Heuristic(config, goal_config, vis_graph),
+    if config.pk in heuristic_cache:
+      heuristic = heuristic_cache[config.pk]
+    else:
+      heuristic = Heuristic(config, goal_config, vis_graph)
+      heuristic_cache[config.pk] = heuristic
+    if heuristic == IMPOSSIBLE:
+      return
+    queue.put((new_value + heuristic,
                config))
 
   for init_config in manager.GetInitialConfigurations():

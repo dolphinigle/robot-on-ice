@@ -94,6 +94,16 @@ def ShortestToLine(line, point):
   return (cpx, cpy)
 
 
+def LineSegmentIntersectStrict(line1, line2):
+  cp1 = CrossProd(line1[0], line1[1], line2[0])
+  cp2 = CrossProd(line1[0], line1[1], line2[1])
+  cp3 = CrossProd(line2[0], line2[1], line1[0])
+  cp4 = CrossProd(line2[0], line2[1], line1[1])
+  if abs(cp1) <= EPS or abs(cp2) <= EPS or abs(cp3) <= EPS or abs(cp4) <= EPS:
+    return False
+  return cp1 * cp2 < 0 and cp3 * cp4 < 0
+
+
 def CircleLineSegmentIntersections(circle, segment):
   center = Point(circle.center[0], circle.center[1])
   distance = segment.distance(center)
@@ -176,6 +186,22 @@ def IsArcStrictIntersectPoly(arc, poly):
       return True
 
   return False
+
+
+def GetTangentLinePoint(circle1, is_circle1_ccw, point):
+  '''Returns the angle that make the tangent with point.'''
+  angle = math.atan2(point[1] - circle1.center[1],
+                     point[0] - circle1.center[0]) % ANGLE_MOD
+
+  distance = math.sqrt((circle1.center[0] - point[0])**2 +
+                       (circle1.center[1] - point[1])**2)
+  tangent = math.sqrt(distance**2 - circle1.radius**2)
+  tangent_angle = math.atan2(tangent, circle1.radius) % ANGLE_MOD
+
+  if is_circle1_ccw:
+    return (angle - tangent_angle) % ANGLE_MOD
+  else:
+    return (angle + tangent_angle) % ANGLE_MOD
 
 
 def GetTangentLine(circle1, is_circle1_ccw, circle2, is_circle2_ccw):

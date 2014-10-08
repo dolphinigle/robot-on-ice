@@ -1,0 +1,23 @@
+As the code is written entirely in Python, the only requirement is to
+install virtualenv and install all things in requirements.txt.
+
+However, some geometry libraries are used. After installing requirements.txt,
+if it doesn't work, please install the corresponding libraries mentioned by
+the error message.
+
+The main function can be called from within main.py, where it will run all
+6 test cases one by one and show the results.
+
+The files are organized as follows:
+
+src/nonholonomic_shortest_path/ contains the source code
+
+inputs/ contains various inputs. If you want to test with other inputs,
+modify the variable "filenames" in src/nonholonomic_shortest_path/main.py
+
+geom_util.py contains most of the geometric utility implementations.
+engine.py is the main path finding implementation.
+parse_input.py parses the input from the input files.
+draw.py draws the corresponding graphic.
+
+

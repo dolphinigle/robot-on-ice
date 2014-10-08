@@ -218,6 +218,22 @@ class ArcTest(unittest.TestCase):
         [1, 0]])))
 
 
+  def testGetTangentLinePoint(self):
+    circle1 = geom_util.Circle(center=(1, 2),
+                               radius=1)
+    point = [0, 1]
+
+    angle = geom_util.GetTangentLinePoint(
+        circle1=circle1, is_circle1_ccw=True, point=point)
+    self.assertAlmostEquals(
+        angle, math.pi)
+    angle = geom_util.GetTangentLinePoint(
+        circle1=circle1, is_circle1_ccw=False, point=point)
+    self.assertAlmostEquals(
+        angle, math.pi * 3.0 / 2.0)
+
+
+
   def testGetTangentLine(self):
     circle1 = geom_util.Circle(center=(1, 2),
                                radius=1)
