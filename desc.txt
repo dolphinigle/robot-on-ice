@@ -1,4 +1,0 @@
-I am not able to find a decent arc and polygon intersection. So, I used a
-circle and polygon intersection library, and then, for each adjacent points
-I test whether the midpoint is strictly inside the polygon.
-

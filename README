@@ -11,9 +11,8 @@ The main function can be called from within main.py, where it will run all
 The files are organized as follows:
 
 src/nonholonomic_shortest_path/ contains the source code
-
-inputs/ contains various inputs. If you want to test with other inputs,
-modify the variable "filenames" in src/nonholonomic_shortest_path/main.py
+inputs/ contains various inputs. If you want to test with other inputs, modify the variable "filenames" in src/nonholonomic_shortest_path/main.py
+doc/ contains the pdf report of the project.
 
 geom_util.py contains most of the geometric utility implementations.
 engine.py is the main path finding implementation.
