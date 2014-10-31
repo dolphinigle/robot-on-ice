@@ -52,12 +52,12 @@ class EngineTest(unittest.TestCase):
 
 
   def testGetDestinationLocationAndOrientation(self):
-    x, y, o = self.grid.GetDestinationLocationAndOrientation(0.0, 1.0, math.pi / 2.0, 0.0)
+    x, y, o = self.grid.GetDestinationLocationAndOrientation(0.0, 1.0, math.pi / 2.0, 0.0, 0.2)
     self.assertAlmostEquals(x, 0.0)
     self.assertAlmostEquals(y, 1.0 + 0.2)
     self.assertAlmostEquals(o, math.pi / 2.0)
 
-    x, y, o = self.grid.GetDestinationLocationAndOrientation(0.0, 1.0, math.pi / 2.0, math.pi)
+    x, y, o = self.grid.GetDestinationLocationAndOrientation(0.0, 1.0, math.pi / 2.0, math.pi, 0.2)
     self.assertAlmostEquals(x, 0.0)
     self.assertAlmostEquals(y, 1.0 - 0.2)
     self.assertAlmostEquals(o, math.pi / 2.0)
@@ -69,7 +69,7 @@ class EngineTest(unittest.TestCase):
                   x_variance=0.05,
                   y_variance=0.05,
                   orientation_variance=0.1)
-    x, y, o = g.GetDestinationLocationAndOrientation(0.0, 1.0, math.pi / 2.0, math.pi / 2.0)
+    x, y, o = g.GetDestinationLocationAndOrientation(0.0, 1.0, math.pi / 2.0, math.pi / 2.0, math.pi / 2.0)
     self.assertAlmostEquals(x, -1.0)
     self.assertAlmostEquals(y, 2.0)
     self.assertAlmostEquals(o, math.pi)
@@ -81,7 +81,7 @@ class EngineTest(unittest.TestCase):
                   x_variance=0.05,
                   y_variance=0.05,
                   orientation_variance=0.1)
-    x, y, o = g.GetDestinationLocationAndOrientation(0.0, 1.0, math.pi / 2.0, -math.pi / 2.0)
+    x, y, o = g.GetDestinationLocationAndOrientation(0.0, 1.0, math.pi / 2.0, -math.pi / 2.0, math.pi / 2.0)
     self.assertAlmostEquals(x, 1.0)
     self.assertAlmostEquals(y, 2.0)
     self.assertTrue(geom_util.AngleAlmostEqual(o, 0.0))
@@ -116,4 +116,19 @@ class EngineTest(unittest.TestCase):
       self.assertGreater(prob_sum, minval)
       self.assertLessEqual(prob_sum, maxval)
 
+
+  def testSampleMovement(self):
+    g = grid.Grid(axis_resolution=5,
+                  orientation_resolution=4,
+                  average_path_length=0.4,
+                  vehicle_length=0.4,
+                  x_variance=0.01,
+                  y_variance=0.01,
+                  orientation_variance=0.05)
+
+    for _ in range(5):
+      x, y, o = g.SampleMovement(0.0, 0.0, math.pi / 2.0, 0.0, 0.5)
+      self.assertTrue(-0.1 <= x <= 0.1, x)
+      self.assertTrue(0.4 <= y <= 0.6, y)
+      self.assertTrue(math.pi / 2.0 - 0.5 <= o <= math.pi / 2.0 + 0.5, o)
 

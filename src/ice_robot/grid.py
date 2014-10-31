@@ -3,6 +3,7 @@ import itertools
 import math
 import sys
 
+import numpy.random
 from scipy import stats
 
 from nonholonomic_shortest_path import geom_util
@@ -65,18 +66,18 @@ class Grid(object):
             ((omid - angle_size * 0.5) % ANGLE_MOD, (omid + angle_size * 0.5) % ANGLE_MOD))
 
 
-  def GetDestinationLocationAndOrientation(self, x, y, orientation, steering_angle):
+  def GetDestinationLocationAndOrientation(self, x, y, orientation, steering_angle, distance):
     if geom_util.AngleAlmostEqual(steering_angle, 0.0):
-      nx = x + math.cos(orientation) * self.average_path_length
-      ny = y + math.sin(orientation) * self.average_path_length
+      nx = x + math.cos(orientation) * distance
+      ny = y + math.sin(orientation) * distance
       no = orientation
     elif geom_util.AngleAlmostEqual(steering_angle, math.pi):
-      nx = x - math.cos(orientation) * self.average_path_length
-      ny = y - math.sin(orientation) * self.average_path_length
+      nx = x - math.cos(orientation) * distance
+      ny = y - math.sin(orientation) * distance
       no = orientation
     else:
       radius = self.vehicle_length / math.sin(abs(steering_angle))
-      circ_angle = self.average_path_length / radius
+      circ_angle = distance / radius
       dyc = math.sin(circ_angle) * radius
       dy = math.sin(orientation) * dyc
       dx = math.cos(orientation) * dyc
@@ -111,7 +112,8 @@ class Grid(object):
     nx, ny, no = self.GetDestinationLocationAndOrientation(x,
                                                            y,
                                                            orientation,
-                                                           steering_angle)
+                                                           steering_angle,
+                                                           self.average_path_length)
     x_dist = stats.norm(loc=nx,
                         scale=self.x_variance)
     y_dist = stats.norm(loc=ny,
@@ -165,4 +167,16 @@ class Grid(object):
     return res
 
 
+  def SampleMovement(self, x, y, orientation, steering_angle, distance):
+    '''Samples a movement from (x, y, orientation). It is possible for this to
+    end up not within the boundary of the field. The movement length will be
+    approximately equal to the movement length.'''
+    nx, ny, no = self.GetDestinationLocationAndOrientation(x,
+                                                           y,
+                                                           orientation,
+                                                           steering_angle,
+                                                           distance)
+    return (numpy.random.normal(nx, self.x_variance, 1)[0],
+            numpy.random.normal(ny, self.y_variance, 1)[0],
+            numpy.random.normal(no, self.orientation_variance, 1)[0])
 
