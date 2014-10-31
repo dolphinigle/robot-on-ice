@@ -585,3 +585,5 @@ def ConstructPath(start_config,
       found_goal = found_goal.previous_config
     return paths, length
 
+
+
