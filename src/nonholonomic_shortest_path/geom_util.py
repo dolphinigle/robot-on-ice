@@ -248,3 +248,10 @@ def AngleAlmostEqual(angle1, angle2):
     return True
   return False
 
+
+def AngleShortestDiff(angle1, angle2):
+  if AngleAlmostEqual(angle1, angle2):
+    return 0.0
+  return min((angle1 - angle2) % ANGLE_MOD,
+             (angle2 - angle1) % ANGLE_MOD)
+

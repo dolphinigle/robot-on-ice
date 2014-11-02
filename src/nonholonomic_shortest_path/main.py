@@ -50,7 +50,7 @@ if __name__ == '__main__':
 
   filename_dir = '../../inputs/'
 
-  filenames = ['test1.mp',
+  filenames = ['test_basic2.mp',
                'test2.mp',
                'test3.mp',
                'test4.mp',

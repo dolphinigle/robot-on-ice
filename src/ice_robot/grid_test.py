@@ -16,6 +16,14 @@ class EngineTest(unittest.TestCase):
                           orientation_variance=0.1)
 
 
+  def testConfigurationToState(self):
+    self.assertEquals((0, 1, 0),
+                      self.grid.ConfigurationToState(((0.1, 0.3), math.pi / 4.0)))
+    self.assertEquals((0, 4, 1),
+                      self.grid.ConfigurationToState(((-0.1, 0.9), 3 * math.pi / 4.0)))
+    self.assertEquals((4, 4, 0),
+                      self.grid.ConfigurationToState(((1.1, 1.3), math.pi / 4.0)))
+
   def testStateToCoor(self):
     x, y, o = self.grid.StateToCoordinates((0, 0, 0))
     self.assertAlmostEquals(x, 0.1)
