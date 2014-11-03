@@ -3,13 +3,13 @@ import math
 from shapely.geometry.linestring import LineString
 
 from ice_robot import grid, markov
+from ice_robot.markov import STEER_ANGLES
 from nonholonomic_shortest_path import geom_util
 from nonholonomic_shortest_path.geom_util import ANGLE_MOD, Arc, CLOCKWISE, \
   COUNTER_CLOCKWISE
 
 
 WALK_LIMIT = 100
-STEER_ANGLES = [1.0, 0.0, 1.0]
 DISCOUNT = 0.95
 ICED_REWARD = -10000
 GOAL_REWARD = 100

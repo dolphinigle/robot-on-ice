@@ -10,14 +10,14 @@ from nonholonomic_shortest_path import geom_util
 from nonholonomic_shortest_path.engine import Distance
 from nonholonomic_shortest_path.geom_util import ANGLE_MOD
 
-
+STEER_ANGLES = [-1.0, 0.0, 1.0]
 MAX_TURNING_ANGLE = math.pi / 4.0
 VEHICLE_LENGTH = 0.1
 AXIS_VARIANCE = 0.005
 ORIENTATION_VARIANCE = 0.1
 MAX_ITERS = 10000
 ITER_DIFF_LIMIT = 0.001
-AXIS_RESOLUTION = 15
+AXIS_RESOLUTION = 8
 STEP_LENGTH = 1.0 / AXIS_RESOLUTION * 2**0.5
 DISTANCE_TOLERANCE = STEP_LENGTH
 ORIENTATION_RESOLUTION = 8

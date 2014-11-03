@@ -42,7 +42,7 @@ def Simulate(filename, engine_class):
       orientation_resolution=ORIENTATION_RESOLUTION,
   )
 
-  path = ice_engine.CreatePath(start_config, engine, ideal=True)
+  path = ice_engine.CreatePath(start_config, engine, ideal=False)
 
   end_time = time.clock()
   elapsed_time = end_time - start_time
