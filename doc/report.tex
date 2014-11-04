@@ -31,15 +31,89 @@
 
 \section{Motivation}
 % * Provide an intuitive description of the problem domain. Describe the motivation and potential applications.
+A car-like robot was dropped on the northern pole few days ago. It has collected various
+data on the north pole, and now is ready for pickup at a specific destination,
+and with a specific orientation. However, due to global warming, pool of water
+forms on the icy surface, and falling into any of them spells certain disfunction
+for the robot. Furthermore, icy surface make it very hard for the robot to
+follow paths exactly, rendering normal techniques to solve the non-holonomic
+motion planning less useful. How are we going to save the robot?
+
+Enter this project. Our algorithm is able to guide the robot to its destination
+reliable and, if the robot slips, correct its path, all in real-time. Our algorithm
+is able to guide the robot despite uncertainty in its movement -- the preceeding
+paragraph gives one such surface that may have unignorable uncertainty.
+
+This project aims to devise such an algorithm, and demonstrates exactly why
+we are not allowed to ignore uncertainty in the experiments.
 
 \section{Problem statement}
 % * State the technical problem formally. 
 
+\subsection{Configuration space}
+We consider a point robot moving on a two dimensional space $\mathbb{R}^2$.
+The robot position is denoted by its coordinates $(x, y)$. We restrict the space
+to $[0\ldots1, 0\ldots1]$ (that is, we must have $0 \le x \le 1$ and $0 \le y \le 1$).
+The robot also has an orientation, denoted by $\theta$. Thus, the robot's
+configuration space is $(x, y, \theta)$ of dimension $3$.
+
+In addition, there are polygonal obstacles lying on the space. The robot
+are not allowed to collide with these obstacles -- doing so results in the
+failure of the execution. In addition, the robot is also not allowed to go
+past the boundaries of the space.
+
+We assume that the robot is able deduce its current configuration space at
+any time -- that is, we assume perfect sensing and knowledge of the configuration space
+and the configuration of the robot.
+
+\subsection{Robot movement and non-holonomic constraint}
+The robot's movement is governed by a car-like non-holonomic law -- the robot
+has a length of $L$ and has a maximum steering distance of $\theta_{\text{max}}$. When the
+robot's steering angle is at $\alpha$, then the turning radius of the robot
+is $L / \sin(\alpha)$, meaning that if the robot steers it with angle of $\alpha$,
+it will roughly follow an arc of a circle of radius $L / \sin(\alpha)$.
+
+For simplicity, we assume that the robot do not have the capabilities to move
+backwards. Extending the algorithm to support this movement is immediate, but
+does not give interesting results.
+
+\subsection{Uncertainty}
+In addition, the robot is unable to execute commands perfectly. The coordinates
+and orientation of the robot suffers from a noise sampled from an unknown distribution
+with known variance (in practice, we can probably measure this variance).
+Thus, when we perform integration over the length of the path, by the central
+limit theorem, this value is approximately normal. Thus, we model the noise
+using normal distribution with variance $\sigma^2$ for the coordinates and
+$\sigma_\theta^2$ for the orientation.
+
+\subsection{Objective}
+The objective of the robot is to approximately reach a specific location with a
+specific orientation. More exactly, the robot is given a goal configuration
+$(x_g, y_g, \theta_g)$, and the robot must reach a configuration $(x, y, \theta)$
+such that $|\theta - \theta_g| < \delta$ and $|(x, y)^2 - (x_g, y_g)^2| < T$,
+for a threshold $T$ and orientation tolerance $\delta$. Note that the probability
+of the robot reaching exactly the configuration $(x_g, y_g, \theta_g)$ might be
+zero due to uncertainty in movement.
+
 \section{Algorithm description}
 % * Present your algorithm. Describe the input and output if necessary. 
+We model the problem using the Markov Decision Process.
+
+\subsection{Discretization}
+
+\subsection{Markov model}
 
 \section{Results and discussions}
 % * Present the theoretical analysis, experiment results, comparison, etc., as applicable.
+
+\subsection{Effect of axis resolution}
+
+\subsection{Effect of variance}
+
+\subsection{Effect of reward}
+
+\subsection{Effect of discount factor}
+
 
 \section{Conclusion}
 % * Briefly summarize your main findings.
