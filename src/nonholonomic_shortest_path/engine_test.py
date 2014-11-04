@@ -13,7 +13,7 @@ from nonholonomic_shortest_path import engine, parse_input
 
 class EngineTest(unittest.TestCase):
   def setUp(self):
-    self.start_config, self.goal_config, self.obstacles = parse_input.ReadInput('../../inputs/test_basic.mp')
+    self.start_config, self.goal_config, self.obstacles, _ = parse_input.ReadInput('../../inputs/test_basic.mp')
 
 
   def testAdjCircles(self):

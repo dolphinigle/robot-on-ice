@@ -14,6 +14,7 @@ def DrawSpace(start_config,
               space_min=0.0,  # min x/y coordinate of the space
               space_max=1.0,  # max x/y coordinate of the space
               solution=None,
+              solutions=None,
               ):
 
   screen_width = 640
@@ -41,11 +42,10 @@ def DrawSpace(start_config,
   #create the screen
   window = pygame.display.set_mode((screen_width, screen_height)) 
 
+  obstacle_color = (51, 255, 204)
   for obstacle in obstacles:
     pygame.draw.polygon(window,
-                        (random.randint(0, 255),
-                         random.randint(0, 255),
-                         random.randint(0, 255)),
+                        obstacle_color,
                         map(NormalizePoint, obstacle.exterior.coords))
 
   pygame.draw.circle(window,
@@ -57,8 +57,8 @@ def DrawSpace(start_config,
                      NormalizePoint(goal_config[0]),
                      point_radius)
 
-  if solution:
-    for item in solution:
+  def DrawPath(path, arc_color, segment_color):
+    for item in path:
       if isinstance(item, geom_util.Arc):
         center = NormalizePoint(item.center)
         radius = NormalizeDistance(item.radius)
@@ -88,6 +88,14 @@ def DrawSpace(start_config,
                          segment_color,
                          NormalizePoint(item.coords[0]),
                          NormalizePoint(item.coords[1]))
+  
+
+  if solution:
+    DrawPath(solution, arc_color, segment_color)
+  if solutions:
+    for path in solutions:
+      color = (random.randint(50, 255), random.randint(50, 255), random.randint(50, 255))
+      DrawPath(path, color, color)
 
   #draw it to the screen
   pygame.display.flip() 

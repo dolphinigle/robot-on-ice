@@ -1,8 +1,6 @@
 '''config is of the form (sympy.Point, orientation).
    orientation is radian wrt positive x axis.'''
 
-import exceptions
-
 from shapely.geometry.linestring import LineString
 from shapely.geometry.polygon import Polygon
 
@@ -27,6 +25,7 @@ def ReadInput(filename, enlargement=0.0):
   goal_config = None
   obstacles = []
   lines = map(lambda x: x.strip(), lines)
+  settings = {}
   while i < len(lines):
     if not lines[i]:
       i += 1
@@ -68,8 +67,10 @@ def ReadInput(filename, enlargement=0.0):
             points[j][1] -= enlargement
       obstacles.append(Polygon(points))
     else:
-      raise exceptions.IOError('Keyword {0} not recognized'.format(lines[i]))
+      assert lines[i][0] == '<' and lines[i][-1] == '>'
+      settings[lines[i][1:-1]] = float(lines[i+1])
+      i += 3
 
-  return (start_config, goal_config, obstacles)
+  return (start_config, goal_config, obstacles, settings)
 
 

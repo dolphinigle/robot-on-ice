@@ -13,4 +13,11 @@
 0.5 0.45
 </Obstacle>
 
+<AxisVariance>
+0.01
+</AxisVariance>
+
+<OrientationVariance>
+0.1
+</OrientationVariance>
 

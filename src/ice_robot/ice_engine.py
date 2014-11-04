@@ -9,11 +9,7 @@ from nonholonomic_shortest_path.geom_util import ANGLE_MOD, Arc, CLOCKWISE, \
   COUNTER_CLOCKWISE
 
 
-WALK_LIMIT = 100
-DISCOUNT = 0.95
-ICED_REWARD = -10000
-GOAL_REWARD = 100
-
+WALK_LIMIT = 500
 
 class SteeringGuide(object):
   '''Abstract class for implementing classes. This is pluggable to the AI'''
@@ -75,6 +71,9 @@ class MarkovDecisionProcessGuide(SteeringGuide):
                average_path_length,
                axis_resolution,
                orientation_resolution,
+               iced_reward,
+               goal_reward,
+               discount,
                ):
     super(MarkovDecisionProcessGuide, self).__init__(goal_config,
                                                      obstacles,
@@ -90,9 +89,9 @@ class MarkovDecisionProcessGuide(SteeringGuide):
         self.grid,
         goal_config,
         [mult * max_steering_angle for mult in STEER_ANGLES],
-        DISCOUNT,
-        ICED_REWARD,
-        GOAL_REWARD,)
+        discount,
+        iced_reward,
+        goal_reward,)
     print self.state_to_action
 
   def GetSteeringAngle(self, configuration):
@@ -113,7 +112,8 @@ def CreatePath(start_config, engine, ideal=True):
     sample_func = engine.grid.SampleMovement
 
   while (walk_limit and
-         not markov.CloseToGoal(current_config, engine.goal_config)):
+         not markov.CloseToGoal(current_config, engine.goal_config, engine.grid) and
+         not markov.OutsideBoundaries(current_config)):
     walk_limit -= 1
     steering_angle = engine.GetSteeringAngle(current_config)
     x, y, o = sample_func(current_config[0][0],
@@ -143,6 +143,8 @@ def CreatePath(start_config, engine, ideal=True):
                               begin_radian,
                               end_radian,
                               direction,))
+      end_pos = current_path[-1].AngleToPoint(end_radian)
+      current_path.append(LineString([end_pos, (x, y)]))
     current_config = ((x, y), o)
   return current_path
 

@@ -1,0 +1,38 @@
+Level 0
+4 circles generated. Running A*...
+Expanded 4 nodes. 0 re-expansions.
+0.011628 seconds: length is 1.43632475865
+Level 1
+8 circles generated. Running A*...
+Expanded 5 nodes. 0 re-expansions.
+0.020589 seconds: length is 1.43632475865
+Level 2
+16 circles generated. Running A*...
+Expanded 6 nodes. 0 re-expansions.
+0.042326 seconds: length is 1.43632475865
+Level 3
+32 circles generated. Running A*...
+Expanded 12 nodes. 0 re-expansions.
+0.109077 seconds: length is 1.43632475865
+Level 4
+64 circles generated. Running A*...
+Expanded 16 nodes. 0 re-expansions.
+0.29204 seconds: length is 1.43632475865
+Level 5
+128 circles generated. Running A*...
+Expanded 30 nodes. 0 re-expansions.
+0.889751 seconds: length is 1.43632475865
+Level 6
+256 circles generated. Running A*...
+Expanded 53 nodes. 0 re-expansions.
+3.001657 seconds: length is 1.43632475865
+Level 7
+512 circles generated. Running A*...
+Expanded 89 nodes. 0 re-expansions.
+10.803712 seconds: length is 1.43632475865
+Level 8
+1024 circles generated. Running A*...
+Expanded 181 nodes. 0 re-expansions.
+41.993238 seconds: length is 1.43632475865
+Level 9
+2048 circles generated. Running A*...

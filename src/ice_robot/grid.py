@@ -63,6 +63,7 @@ class Grid(object):
     self.x_variance = x_variance
     self.y_variance = y_variance
     self.orientation_variance = orientation_variance
+    self.orientation_tolerance = ANGLE_MOD * 1.0 / orientation_resolution
 
     is_bad = [[False] * axis_resolution for _ in range(axis_resolution)]
     if obstacles:
@@ -107,7 +108,7 @@ class Grid(object):
     c = Normalize(base_c)
     for io in range(self.orientation_resolution):
       _, _, (o1, o2) = self.StateToCoorRange((0, 0, io))
-      if geom_util.IsAngleBetween(configuration[1], o1, o2):
+      if geom_util.IsAngleBetween(configuration[1], o1, o2) or geom_util.AngleAlmostEqual(configuration[1], o1):
         return (r, c, io)
 
     # Already in ice/goal

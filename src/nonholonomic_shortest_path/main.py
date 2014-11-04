@@ -16,7 +16,7 @@ if __name__ == '__main__':
     level = 0
     while level < 8:
       print 'Level {0} ({1})'.format(level, filename)
-      start_config, goal_config, obstacles = parse_input.ReadInput(filename)
+      start_config, goal_config, obstacles, _ = parse_input.ReadInput(filename)
       additional_obstacles = [
           Polygon([(0, 0),
                    (0, 2),
@@ -50,7 +50,7 @@ if __name__ == '__main__':
 
   filename_dir = '../../inputs/'
 
-  filenames = ['test_basic2.mp',
+  filenames = ['ice2.mp',
                'test2.mp',
                'test3.mp',
                'test4.mp',

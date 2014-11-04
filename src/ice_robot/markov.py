@@ -4,28 +4,37 @@ Created on Nov 2, 2014
 @author: dolphinigle
 '''
 
+import hashlib
 import math
+import os
+import pickle
 
 from nonholonomic_shortest_path import geom_util
 from nonholonomic_shortest_path.engine import Distance
-from nonholonomic_shortest_path.geom_util import ANGLE_MOD
+
 
 STEER_ANGLES = [-1.0, 0.0, 1.0]
 MAX_TURNING_ANGLE = math.pi / 4.0
 VEHICLE_LENGTH = 0.1
-AXIS_VARIANCE = 0.005
+AXIS_VARIANCE = 0.01
 ORIENTATION_VARIANCE = 0.1
 MAX_ITERS = 10000
 ITER_DIFF_LIMIT = 0.001
-AXIS_RESOLUTION = 8
-STEP_LENGTH = 1.0 / AXIS_RESOLUTION * 2**0.5
-DISTANCE_TOLERANCE = STEP_LENGTH
-ORIENTATION_RESOLUTION = 8
-GOAL_ORIENTATION_TOLERANCE = ANGLE_MOD * 1.0 / ORIENTATION_RESOLUTION
+AXIS_RESOLUTION = 20
+ORIENTATION_RESOLUTION = 16
+CACHE_DIR = '../../cache/'
+ICED_REWARD = -10000
+GOAL_REWARD = 100
 
-def CloseToGoal(configuration, goal_configuration):
-  if (Distance(configuration[0], goal_configuration[0]) <= DISTANCE_TOLERANCE and
-      geom_util.AngleShortestDiff(configuration[1], goal_configuration[1]) <= GOAL_ORIENTATION_TOLERANCE):
+
+def CloseToGoal(configuration, goal_configuration, g):
+  if (Distance(configuration[0], goal_configuration[0]) <= g.average_path_length and
+      geom_util.AngleShortestDiff(configuration[1], goal_configuration[1]) <= g.orientation_tolerance):
+    return True
+  return False
+
+def OutsideBoundaries(configuration):
+  if configuration[0][0] < 0 or configuration[0][1] < 0 or configuration[0][0] > 1.0 or configuration[0][1] > 1.0:
     return True
   return False
 
@@ -41,20 +50,31 @@ def MarkovPrecomputeSteeringAngle(grid,
   goal_states = set()
   for state in grid.StateGenerator():
     x, y, o = grid.StateToCoordinates(state)
-    if CloseToGoal(((x, y), o), goal_configuration):
+    if CloseToGoal(((x, y), o), goal_configuration, grid):
       goal_states.add(state)
 
   # Now, generate the transitions
   print 'Generating transition probabilities...'
-  trans = {}
-  for state in grid.StateGenerator():
-    print 'Generating for state {0}'.format(state)
-    if not grid.IsBad(state):
-      for action in steering_angles:
-        trans[(state, action)] = grid.GenerateTransitionProbabilities(
-            state, action)
-        print len(trans[(state, action)])
-  print 'Generated.'
+
+  hashhex = hashlib.sha224(pickle.dumps(grid) + str(steering_angles)).hexdigest()
+  cachefile = CACHE_DIR + hashhex
+  if os.path.isfile(cachefile):
+    # Cache found
+    print 'cache hit!'
+    trans = pickle.load(open(cachefile, 'r'))
+    print 'loaded'
+  else:
+    print 'cache miss...'
+    trans = {}
+    for state in grid.StateGenerator():
+      print 'Generating for state {0}'.format(state)
+      if not grid.IsBad(state):
+        for action in steering_angles:
+          trans[(state, action)] = grid.GenerateTransitionProbabilities(
+              state, action)
+          print len(trans[(state, action)])
+    pickle.dump(trans, open(cachefile, 'w'))
+    print 'Generated.'
 
   # Now initialize the "previous" values.
   prev_values = {}

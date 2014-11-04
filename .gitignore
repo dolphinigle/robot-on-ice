@@ -1,4 +1,9 @@
 *~
+cache/*
+*.aux
+*.log
+*.pdf
+*.out
 *.pyc
 env/*
 *.orig
