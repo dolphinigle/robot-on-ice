@@ -20,3 +20,11 @@
 1.5 0.5
 </Obstacle>
 
+<AxisResolution>
+5
+</AxisResolution>
+
+<OrientationResolution>
+4
+</OrientationResolution>
+

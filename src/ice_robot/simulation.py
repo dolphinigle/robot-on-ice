@@ -11,6 +11,9 @@ from nonholonomic_shortest_path import parse_input, draw
 
 
 PATHS_TO_SIMULATE = 5
+BG_PATHS_TO_SIMULATE = 100
+PATHS_TO_SIMULATE_FOR_STATS = 1000
+WALK_LIMIT = 500
 
 
 def Simulate(filename, engine_class):
@@ -54,10 +57,33 @@ def Simulate(filename, engine_class):
       discount=discount,
   )
 
-  ideal_path = ice_engine.CreatePath(start_config, engine, ideal=True)
+  ideal_path, _ = ice_engine.CreatePath(start_config, engine, all_obstacles, WALK_LIMIT, ideal=True)
   paths = []
   for _ in range(PATHS_TO_SIMULATE):
-    paths.append(ice_engine.CreatePath(start_config, engine, ideal=False))
+    p, _ = ice_engine.CreatePath(start_config, engine, all_obstacles, WALK_LIMIT, ideal=False)
+    paths.append(p)
+
+  bg_paths = []
+  for _ in range(BG_PATHS_TO_SIMULATE):
+    p, _ = ice_engine.CreatePath(start_config, engine, all_obstacles, WALK_LIMIT, ideal=False)
+    bg_paths.append(p)
+
+  print 'Simulating paths...'
+  successes = 0
+  tles = 0
+  iceds = 0
+  for _ in xrange(PATHS_TO_SIMULATE_FOR_STATS):
+    _, state = ice_engine.CreatePath(start_config, engine, all_obstacles, WALK_LIMIT, ideal=False)
+    if state == ice_engine.SUCCESS:
+      successes += 1
+    elif state == ice_engine.TLE:
+      tles += 1
+    elif state == ice_engine.ICED:
+      iceds += 1
+    else:
+      assert False
+  print 'Paths simulation completed. Success: {0}, TLE: {1}, Iced: {2}'.format(
+      successes, tles, iceds)
 
   end_time = time.clock()
   elapsed_time = end_time - start_time
@@ -67,4 +93,5 @@ def Simulate(filename, engine_class):
                  goal_config,
                  obstacles,
                  solution=ideal_path,
-                 solutions=paths)
+                 solutions=paths,
+                 bg_solutions=bg_paths)

@@ -1,5 +1,9 @@
+<AxisVariance>
+0.0
+</AxisVariance>
+
 <Start>
-0.9 0.9 3.14
+0.1 0.1 0.785
 </Start>
 
 <Goal>
@@ -23,8 +27,15 @@
 <Obstacle>
 -1.0 0.46
 -1.0 0.54
-0.49 0.54
+0.19 0.54
+0.19 0.46
+</Obstacle>
+
+<Obstacle>
+0.26 0.46
 0.49 0.46
+0.49 0.54
+0.26 0.54
 </Obstacle>
 
 <Obstacle>

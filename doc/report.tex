@@ -55,12 +55,14 @@ We consider a point robot moving on a two dimensional space $\mathbb{R}^2$.
 The robot position is denoted by its coordinates $(x, y)$. We restrict the space
 to $[0\ldots1, 0\ldots1]$ (that is, we must have $0 \le x \le 1$ and $0 \le y \le 1$).
 The robot also has an orientation, denoted by $\theta$. Thus, the robot's
-configuration space is $(x, y, \theta)$ of dimension $3$.
+configuration is $(x, y, \theta)$ of dimension $3$.
 
 In addition, there are polygonal obstacles lying on the space. The robot
 are not allowed to collide with these obstacles -- doing so results in the
 failure of the execution. In addition, the robot is also not allowed to go
-past the boundaries of the space.
+past the boundaries of the space. More specifically, whenever the robot's
+configuration is within an obstacle or outside the boundaries of the field,
+the robot's execution failed.
 
 We assume that the robot is able deduce its current configuration space at
 any time -- that is, we assume perfect sensing and knowledge of the configuration space
@@ -68,7 +70,9 @@ and the configuration of the robot.
 
 \subsection{Robot movement and non-holonomic constraint}
 The robot's movement is governed by a car-like non-holonomic law -- the robot
-has a length of $L$ and has a maximum steering distance of $\theta_{\text{max}}$. When the
+has a length of $L$ and has a maximum steering distance of $\theta_{\text{max}}$.
+The robot can freely adjust its steering distance as long as its absolute
+value does not exceed $\theta_{\text{max}}$.  When the
 robot's steering angle is at $\alpha$, then the turning radius of the robot
 is $L / \sin(\alpha)$, meaning that if the robot steers it with angle of $\alpha$,
 it will roughly follow an arc of a circle of radius $L / \sin(\alpha)$.
@@ -97,14 +101,94 @@ zero due to uncertainty in movement.
 
 \section{Algorithm description}
 % * Present your algorithm. Describe the input and output if necessary. 
-We model the problem using the Markov Decision Process.
+We model the problem using the Markov Decision Process, and use value iteration
+to find the optimal actions at each step.
+The values of the various parameters associated with the algorithm is
+summarized in Figure~\ref{f:notations}.
+
+\subsection{Abstract model}
+
+The markov model of our problem is as follows. Each state in the markov model
+would be a configuration in the configuration space. At each state, the robot's
+action constitutes of setting the steering angle. Because of the noise, however,
+the steering angle does not lead deterministically to the next state.
 
 \subsection{Discretization}
+Markov Decision Process assumes a finite number of states and a finite number
+of actions. Without discretization, there is an infinite number of
+configurations and infinite number of actions. Thus, we discretize the configuration
+space and the actions as follows.
+
+\subsubsection{Configuration discretization}
+For the space, we discretize each of the axis of the coordinates into $n$
+equal-width spaces. We further discretize the angle into $m$ equally-spaced
+intervals. Thus, each state is a square cell of $\mathbb{R}^2$ and an orientation
+range.
+
+\subsubsection{Action discretization}
+For simplicity, we only consider three possible actions: steer all the way
+to the left, steer all the way to the right, or steer straight. That is,
+the only three steering angles we consider are $\{-\theta_\text{max}, 0, \theta_\text{max}\}$.
 
 \subsection{Markov model}
+The markov decision process has the following elements:
+\begin{itemize}
+  \item S (the set of states): corresponds to each of the discretized cells.
+  \item A (the set of actions): $\{-\theta_\text{max}, 0, \theta_\text{max}\}$.
+  \item T (the transition function): will be described in section~\ref{sec:t}.
+  \item R (the reward function): will be described in section~\ref{sec:r}.
+\end{itemize}
+
+In addition, we use an infinite horizon model with discount factor of $\eta$.
+
+\subsubsection{Action configuration transitition}
+\label{sec:t}
+To model the transition probability function $T(s, a, s')$ (probability of
+reaching state $s'$ when executing action $a$ in state $s$), we do the following.
+Each action is taken as if it were to be executed until a distance of $\delta$
+is travelled. To model the noise, at the projected end of the movement, we
+shift the configuration coordinates by a normal distribution with variance
+$\sigma^2$ for the coordinates and $\sigma_\theta^2$ for the orientation.
+
+More specifically, $T(s, a, s')$ is computed as follows. Let $(x, y)$ be the
+center of the cell of $\mathbb{R}^2$ of state $s$. Consider when the robot
+align its steering angle to $a$ until he walked a distance of $\delta$. He
+will arrive in another point $(x', y')$, and with a new orientation $\theta'$.
+For each $a \in \{x', y', \theta'\}$, consider the normal distribution
+with mean equal to $a$ and its corresponding variance. We calculate the probability
+that each of these distributions fall under the state $s'$, and multiply all
+of them together to obtain $T(s, a, s')$.
+
+\subsubsection{Reward function}
+\label{sec:r}
+We give the robot positive reward ($r_g$) if it reaches the goal, and a large negative
+reward $r_i$ if it falls to ice. Thus, the reward is actually based on would-be state,
+that is, $R(s, a, s')$. Thus, we convert this to $R(s, a)$ by multiplying the
+reward by the probability of reaching the state, that is:
+
+\[ R(s, a) = \sum_{s' \in S} T(s, a, s') \cdot R(s, a, s') \]
 
 \section{Results and discussions}
 % * Present the theoretical analysis, experiment results, comparison, etc., as applicable.
+
+The values of the parameters used for testing is summarized in Figure~\ref{f:notations}.
+We use the value displayed unless stated otherwise.
+
+\begin{figure}
+\label{f:notations}
+\caption{Various notations we use and its default values for the experiments}
+\begin{tabular}{ l | l | l }
+  Symbol & Description & Value \\ \hline \hline
+  $n$ & Grid resolution & 20 \\ \hline
+  $m$ & Orientation resolution & 16 \\ \hline
+  $L$ & Length of the car & 0.1 \\ \hline
+  $\theta_{\text{max}}$ & Maximum turning angle & $\pi / 4$ \\ \hline
+  $\delta$ & Length of a single step of execution & $2^{0.5} / n$ \\ \hline
+  $r_g$ & Reward upon reaching the goal & 100 \\ \hline
+  $r_i$ & Reward if fall into ice & -10000 \\ \hline
+  $\eta$ & Discount factor & 0.95 \\ \hline
+\end{tabular}
+\end{figure}
 
 \subsection{Effect of axis resolution}
 
@@ -114,9 +198,11 @@ We model the problem using the Markov Decision Process.
 
 \subsection{Effect of discount factor}
 
-
 \section{Conclusion}
 % * Briefly summarize your main findings.
+We showed that the Markov Decision Process is able to give reasonable paths
+to the robot even when the field is uncertain and constrainted heavily by
+non-holonomic constraints.
 
 \end{document}
 

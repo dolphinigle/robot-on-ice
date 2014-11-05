@@ -1,6 +1,7 @@
 import math
 
 from shapely.geometry.linestring import LineString
+from shapely.geometry.point import Point
 
 from ice_robot import grid, markov
 from ice_robot.markov import STEER_ANGLES
@@ -8,8 +9,6 @@ from nonholonomic_shortest_path import geom_util
 from nonholonomic_shortest_path.geom_util import ANGLE_MOD, Arc, CLOCKWISE, \
   COUNTER_CLOCKWISE
 
-
-WALK_LIMIT = 500
 
 class SteeringGuide(object):
   '''Abstract class for implementing classes. This is pluggable to the AI'''
@@ -92,20 +91,23 @@ class MarkovDecisionProcessGuide(SteeringGuide):
         discount,
         iced_reward,
         goal_reward,)
-    print self.state_to_action
 
   def GetSteeringAngle(self, configuration):
     state = self.grid.ConfigurationToState(configuration)
     if state not in self.state_to_action:
-      print 'WARNING: State {0} not found'.format(state)
       return 0.0
     return self.state_to_action[state]
 
 
-def CreatePath(start_config, engine, ideal=True):
+SUCCESS = 1
+ICED = 2
+TLE = 3
+
+
+def CreatePath(start_config, engine, obstacles, max_walk, ideal=True):
   current_path = []
   current_config = start_config
-  walk_limit = WALK_LIMIT
+  walk_limit = max_walk
   if ideal:
     sample_func = engine.grid.GetDestinationLocationAndOrientation
   else:
@@ -113,6 +115,7 @@ def CreatePath(start_config, engine, ideal=True):
 
   while (walk_limit and
          not markov.CloseToGoal(current_config, engine.goal_config, engine.grid) and
+         not obstacles.contains(Point(current_config[0][0], current_config[0][1])) and
          not markov.OutsideBoundaries(current_config)):
     walk_limit -= 1
     steering_angle = engine.GetSteeringAngle(current_config)
@@ -146,7 +149,13 @@ def CreatePath(start_config, engine, ideal=True):
       end_pos = current_path[-1].AngleToPoint(end_radian)
       current_path.append(LineString([end_pos, (x, y)]))
     current_config = ((x, y), o)
-  return current_path
+
+  state = SUCCESS
+  if not markov.CloseToGoal(current_config, engine.goal_config, engine.grid):
+    state = ICED
+  if not walk_limit:
+    state = TLE
+  return current_path, state
 
 
 

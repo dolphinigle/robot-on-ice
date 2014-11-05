@@ -108,11 +108,11 @@ class Grid(object):
     c = Normalize(base_c)
     for io in range(self.orientation_resolution):
       _, _, (o1, o2) = self.StateToCoorRange((0, 0, io))
-      if geom_util.IsAngleBetween(configuration[1], o1, o2) or geom_util.AngleAlmostEqual(configuration[1], o1):
+      if geom_util.IsAngleBetween(configuration[1], o1, o2) or geom_util.AngleAlmostEqual(configuration[1], o1) or geom_util.AngleAlmostEqual(configuration[1], o2):
         return (r, c, io)
 
     # Already in ice/goal
-    return 0.0
+    assert False
 
 
   def StateToCoorRange(self, state):
@@ -249,7 +249,7 @@ class Grid(object):
                                                            distance)
     return (numpy.random.normal(nx, self.x_variance, 1)[0],
             numpy.random.normal(ny, self.y_variance, 1)[0],
-            numpy.random.normal(no, self.orientation_variance, 1)[0])
+            numpy.random.normal(no, self.orientation_variance, 1)[0] % ANGLE_MOD)
 
 
   def StateGenerator(self):
