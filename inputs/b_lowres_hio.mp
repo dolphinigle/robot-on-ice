@@ -49,7 +49,7 @@
 </Obstacle>
 
 <AxisResolution>
-20
+10
 </AxisResolution>
 
 <OrientationResolution>

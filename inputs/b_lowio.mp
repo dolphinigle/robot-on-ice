@@ -53,5 +53,5 @@
 </AxisResolution>
 
 <OrientationResolution>
-16
+8
 </OrientationResolution>

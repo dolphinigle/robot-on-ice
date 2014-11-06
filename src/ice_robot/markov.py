@@ -34,7 +34,7 @@ def CloseToGoal(configuration, goal_configuration, g):
   return False
 
 def OutsideBoundaries(configuration):
-  if configuration[0][0] < 0 or configuration[0][1] < 0 or configuration[0][0] > 1.0 or configuration[0][1] > 1.0:
+  if configuration[0][0] < 0.0 or configuration[0][1] < 0.0 or configuration[0][0] > 1.0 or configuration[0][1] > 1.0:
     return True
   return False
 

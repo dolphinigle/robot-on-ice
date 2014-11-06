@@ -125,6 +125,14 @@ equal-width spaces. We further discretize the angle into $m$ equally-spaced
 intervals. Thus, each state is a square cell of $\mathbb{R}^2$ and an orientation
 range.
 
+We consider a square cell to be bad if it intersects with an obstacle. Thus, with
+very small values of $n$, it might be possible that all square cells are considered
+bad, and thus we suggest using values of $n$ that is reasonably high. A rough
+guideline is as follows: if the size of the smallest gap is $x$, then we
+suggest using $n \ge 2/x$. If all the obstacles are axis aligned, then this
+would guarantee that there exists a sequence of adjacent non-bad path from the
+start to the goal states if there exists such a path in the non-discretized space.
+
 \subsubsection{Action discretization}
 For simplicity, we only consider three possible actions: steer all the way
 to the left, steer all the way to the right, or steer straight. That is,
@@ -161,7 +169,9 @@ of them together to obtain $T(s, a, s')$.
 
 \subsubsection{Reward function}
 \label{sec:r}
-We give the robot positive reward ($r_g$) if it reaches the goal, and a large negative
+Intuitively, we would like the reward function to deter the robot from entering
+obstacles, and reward it if it reaches the goal configuration. More formally,
+we give the robot positive reward ($r_g$) if it reaches the goal, and a large negative
 reward $r_i$ if it falls to ice. Thus, the reward is actually based on would-be state,
 that is, $R(s, a, s')$. Thus, we convert this to $R(s, a)$ by multiplying the
 reward by the probability of reaching the state, that is:
@@ -190,7 +200,111 @@ We use the value displayed unless stated otherwise.
 \end{tabular}
 \end{figure}
 
-\subsection{Effect of axis resolution}
+The default configuration of obstacles that we use is depicted in Figure~\ref{f:b_shortest}.
+
+\begin{figure}
+\label{f:b}
+\caption{The default configuration used in the subsequent tests. The starting
+  configuration is on the bottom left, facing northeast. The goal configuration
+  is on the top right, facing east. The configuration consists
+  of large corridors and a small corridor that offers shortcut from the start
+  and goal configurations. Assuming no noise, the shortest path from the start
+to the goal configuration we find is depicted in the figure as well.}
+\centerline{\includegraphics[width=5cm]{b_shortest.png}}
+\end{figure}
+
+\subsection{Figure description}
+Figure~\ref{f:b} shows the result of running the algorithm on the default
+configuration with default values.
+
+\begin{figure}
+\label{f:b}
+\caption{Result of running the algorithm on the default configuration with default values.
+Amongst 1000 executions, 780 of them successfully reached the goal configuration.
+The value iteration terminated after 150 iterations.}
+\centerline{\includegraphics[width=5cm]{b.png}}
+\end{figure}
+
+In all the figures, including Figure~\ref{f:b}, we adopt the following notations.
+The alternating black and red line is the path the robot would follow if
+all of its movements are exact. The light grey paths depicts multiple paths
+that were generated. In addition, there are 5 other bright colored paths that
+are chosen randomly from all the generated paths. The paths may not seem continuous
+because we discretize the noise so that it only happens between paths of length
+$\delta$.
+
+\subsection{Default value discussion}
+In Figure~\ref{f:b}, we make the following observations. The path chosen is
+significantly different from the shortest path -- here, the algorithm prefer
+to drive the robot to follow the large corridor on the right, even though
+the path is longer. This is in line with our intuition that, since the deterrant
+of falling into ice is high, it is more beneficial to take the less risky way,
+even though it makes the reward somewhat smaller due to applying the discount
+factor more.
+
+More interestingly, the appearance of uncertainty makes the movement much more
+diverse. There seems to be two major paths: through the center corridor or
+through the right corridors. We note that whenever the noise affects the robot
+such that it goes "off track", instead of correcting its original track, the
+robot may instead follow a different track. This is good as it follows
+intuition -- backtracking to the original path may be more dangerous
+than following the new path. For example, in the purple path, the robot is
+quite affected by the noise that it have to make two different paths: the first
+happens on the center intersection, where instead of going straight, it instead
+decides to go down since its orientation points too sharply to the south. The
+second one happens near the narrow corridor on the left, where its orientation
+is affected so much that it points too north, and thus the robot decides to
+brace through the narrow corridor instead (and succesfully so).
+
+As an additional observation, we observed that most of the failure occurs on the
+right corridor when turning. It seems that it is for this reason that the path
+tries to follow the larger corridor on the right, because it requires larger degree
+of error before failing, therefore minimizing the chance of failure. However,
+an alternative, less pleasant, reasoning of choosing the right corridor might
+be that the algorithm tries to make the failure occurs as late as possible,
+instead of minimizing the probability of failure -- which is an unfortunate side
+effect of this algorithm.
+
+\subsection{Effect of discretization resolution}
+The following results seems to suggest that increasing the resolution makes the algorithm
+succeed more often.
+
+We ran two additional experiments in addition to the one using the default
+values. The result is summarized in Figure~\ref{f:resolution}.
+The individual results for $n=15$ and $n=10$ are depicted in Figure~\ref{f:midres} and Figure~\ref{f:lowres},
+respectively. We were unable
+to succesfully run the algorithm with a resolution significantly higher than
+$20$, due to the computer running out of memory (for storing the MDP model).
+
+\begin{figure}
+\label{f:resolution}
+\caption{Effect of resolutions. Time of execution excludes the time required
+         to generate the transition function of the MDP}
+\begin{tabular}{ l | l | l | l }
+  $n$ & $m$ & Success rate & Time of execution \\ \hline \hline
+  $20$ & $16$ & $0.780$ & $90$ seconds \\ \hline
+  $20$ & $12$ & $0.780$ & $90$ seconds \\ \hline
+  $20$ & $8$ & $0.780$ & $90$ seconds \\ \hline
+  $15$ & $16$ & $0.124$ & $18$ seconds \\ \hline
+  $15$ & $12$ & $0.124$ & $18$ seconds \\ \hline
+  $15$ & $8$ & $0.124$ & $18$ seconds \\ \hline
+  $10$ & $16$ & $0.112$ & $6$ seconds \\ \hline
+  $10$ & $12$ & $0.112$ & $6$ seconds \\ \hline
+  $10$ & $8$ & $0.122$ & $3$ seconds \\ \hline
+\end{tabular}
+\end{figure}
+
+\begin{figure}
+\label{f:b}
+\caption{Default configuration with $n=15$, and $m=12$}
+\centerline{\includegraphics[width=5cm]{b_medres.png}}
+\end{figure}
+
+\begin{figure}
+\label{f:b}
+\caption{Default configuration with $n=10$, and $m=8$}
+\centerline{\includegraphics[width=5cm]{b_lowres.png}}
+\end{figure}
 
 \subsection{Effect of variance}
 

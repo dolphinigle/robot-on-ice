@@ -1,11 +1,3 @@
-<AxisVariance>
-0.05
-</AxisVariance>
-
-<OrientationVariance>
-0.5
-</OrientationVariance>
-
 <Start>
 0.1 0.1 0.785
 </Start>
@@ -57,9 +49,9 @@
 </Obstacle>
 
 <AxisResolution>
-20
+10
 </AxisResolution>
 
 <OrientationResolution>
-16
+8
 </OrientationResolution>

@@ -1,3 +1,11 @@
+<AxisVariance>
+0.0
+</AxisVariance>
+
+<OrientationVariance>
+0.0
+</OrientationVariance>
+
 <Start>
 0.1 0.1 0.785
 </Start>
