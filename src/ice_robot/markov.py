@@ -18,13 +18,20 @@ MAX_TURNING_ANGLE = math.pi / 4.0
 VEHICLE_LENGTH = 0.1
 AXIS_VARIANCE = 0.01
 ORIENTATION_VARIANCE = 0.1
-MAX_ITERS = 10000
-ITER_DIFF_LIMIT = 0.001
+MAX_ITERS = 500
+ITER_DIFF_LIMIT = 0.000001
 AXIS_RESOLUTION = 20
 ORIENTATION_RESOLUTION = 16
 CACHE_DIR = '../../cache/'
 ICED_REWARD = -10000
 GOAL_REWARD = 100
+
+
+def CloseToGoalConst(configuration, goal_configuration, g):
+  if (Distance(configuration[0], goal_configuration[0]) <= 0.08 and
+      geom_util.AngleShortestDiff(configuration[1], goal_configuration[1]) <= 0.4):
+    return True
+  return False
 
 
 def CloseToGoal(configuration, goal_configuration, g):
@@ -119,10 +126,9 @@ def MarkovPrecomputeSteeringAngle(grid,
     prev_values = new_values
     if maxdiff <= ITER_DIFF_LIMIT:
       print 'Iteration completed at {0}, maxdiff: {1}'.format(iters, maxdiff)
-      print new_values
       break
-    if iters % 100 == 0:
-      print 'Iteration {0}, maxdiff: {1}'.format(iters, maxdiff)
+    if iters % 20 == 0:
+      print 'Iteration {0}, maxdiff: {1}'.format(MAX_ITERS - iters, maxdiff)
 
   return state_to_action
 

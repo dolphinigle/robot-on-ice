@@ -24,7 +24,7 @@ def DrawSpace(start_config,
   goal_config_color = (255, 255, 0)
   arc_color = (0, 0, 0)
   segment_color = (255, 0, 0)
-  point_radius = 1
+  point_radius = int(0.08 * 640)
 
   def NormalizeDistance(distance):
     return int((distance - space_min) / (1.0 * space_max - space_min) * max(screen_width, screen_height))
@@ -83,7 +83,12 @@ def DrawSpace(start_config,
                          segment_color,
                          NormalizePoint(item.coords[0]),
                          NormalizePoint(item.coords[1]))
-  
+
+  pygame.draw.circle(window,
+                     goal_config_color,
+                     NormalizePoint(goal_config[0]),
+                     point_radius)
+  point_radius = 1
 
   if bg_solutions:
     for path in bg_solutions:
@@ -101,10 +106,6 @@ def DrawSpace(start_config,
   pygame.draw.circle(window,
                      start_config_color,
                      NormalizePoint(start_config[0]),
-                     point_radius)
-  pygame.draw.circle(window,
-                     goal_config_color,
-                     NormalizePoint(goal_config[0]),
                      point_radius)
 
   #draw it to the screen

@@ -94,7 +94,7 @@ $\sigma_\theta^2$ for the orientation.
 The objective of the robot is to approximately reach a specific location with a
 specific orientation. More exactly, the robot is given a goal configuration
 $(x_g, y_g, \theta_g)$, and the robot must reach a configuration $(x, y, \theta)$
-such that $|\theta - \theta_g| < \delta$ and $|(x, y)^2 - (x_g, y_g)^2| < T$,
+such that $|\theta - \theta_g| < D$ and $|(x, y)^2 - (x_g, y_g)^2| < T$,
 for a threshold $T$ and orientation tolerance $\delta$. Note that the probability
 of the robot reaching exactly the configuration $(x_g, y_g, \theta_g)$ might be
 zero due to uncertainty in movement.
@@ -139,7 +139,7 @@ to the left, steer all the way to the right, or steer straight. That is,
 the only three steering angles we consider are $\{-\theta_\text{max}, 0, \theta_\text{max}\}$.
 
 \subsection{Markov model}
-The markov decision process has the following elements:
+The markov decision process (MDP) has the following elements:
 \begin{itemize}
   \item S (the set of states): corresponds to each of the discretized cells.
   \item A (the set of actions): $\{-\theta_\text{max}, 0, \theta_\text{max}\}$.
@@ -148,6 +148,7 @@ The markov decision process has the following elements:
 \end{itemize}
 
 In addition, we use an infinite horizon model with discount factor of $\eta$.
+We use value iteration to compute the value, stopping when $\epsilon < 0.001$.
 
 \subsubsection{Action configuration transitition}
 \label{sec:t}
@@ -178,6 +179,29 @@ reward by the probability of reaching the state, that is:
 
 \[ R(s, a) = \sum_{s' \in S} T(s, a, s') \cdot R(s, a, s') \]
 
+\subsubsection{Discount factor}
+
+In the general case, the discount factor for an infinite horizon MDP must be
+strictly less than $1.0$, because otherwise the value of each state may become
+unbounded. However, our model of MDP is special because the reward function is
+only ever awarded once, therefore it is impossible for the value of each state
+to be unbounded. Because of this, it is possible to set the discount factor to
+$1.0$, which is ideal. Indeed we do exactly this in Section~\ref{s:discount}
+and show that it gives good result.
+
+With a discount factor of $1$, we can conclude interesting properties from the
+value of a state. Let the value of the state be $x$. Then, since the only
+rewards available are either from falling to ice or falling to goal, then we
+must have
+
+$$x = p_g \cdot r_g + (1 - p_g) \cdot r_i$$
+
+where $p_g$ is the probability of reaching the goal.
+
+Thus, given $x$, we can deduce $p_g$. We can compute this more easily if we
+set $r_g = 1$ and $r_i = 1$ (the resulting path will still be the same).
+We discuss the ideal case in Section~\ref{s:ideal}.
+
 \section{Results and discussions}
 % * Present the theoretical analysis, experiment results, comparison, etc., as applicable.
 
@@ -185,8 +209,8 @@ The values of the parameters used for testing is summarized in Figure~\ref{f:not
 We use the value displayed unless stated otherwise.
 
 \begin{figure}
-\label{f:notations}
 \caption{Various notations we use and its default values for the experiments}
+\label{f:notations}
 \begin{tabular}{ l | l | l }
   Symbol & Description & Value \\ \hline \hline
   $n$ & Grid resolution & 20 \\ \hline
@@ -197,31 +221,45 @@ We use the value displayed unless stated otherwise.
   $r_g$ & Reward upon reaching the goal & 100 \\ \hline
   $r_i$ & Reward if fall into ice & -10000 \\ \hline
   $\eta$ & Discount factor & 0.95 \\ \hline
+  $D$ & Error tolerance on goal coordinates & 0.08 \\ \hline
+  $T$ & Error tolerance on goal orientation & 0.4 \\ \hline
+  $\sigma^2$ & Axis variance & 0.01 \\ \hline
+  $\sigma_\theta^2$ & Orientation variance & 0.1 \\ \hline
+  $\epsilon$ & Maximum difference before value iteration stops & 0.001 \\ \hline
 \end{tabular}
 \end{figure}
 
-The default configuration of obstacles that we use is depicted in Figure~\ref{f:b_shortest}.
+The default configuration of obstacles that we use is depicted in
+Figure~\ref{f:b_shortest}.
 
 \begin{figure}
-\label{f:b}
 \caption{The default configuration used in the subsequent tests. The starting
   configuration is on the bottom left, facing northeast. The goal configuration
   is on the top right, facing east. The configuration consists
   of large corridors and a small corridor that offers shortcut from the start
   and goal configurations. Assuming no noise, the shortest path from the start
 to the goal configuration we find is depicted in the figure as well.}
+\label{f:b_shortest}
 \centerline{\includegraphics[width=5cm]{b_shortest.png}}
 \end{figure}
+
+\subsection{On the running time}
+On some subsections below, we showed the running time of the algorithm on
+a computer with processors 4x Intel$^\text{\textregistered}$ $\text{Core}^{\text{TM}}$ i5-3210M CPU @ 2.50GHz with 4GB RAM. In addition, we do not
+include the time required to generate the MDP model, because it is dominated
+by the time required to calculate the cumulative density function of the
+normal distribution (this is because there is no closed form formula to
+calculate this function and thus computation becomes expensive).
 
 \subsection{Figure description}
 Figure~\ref{f:b} shows the result of running the algorithm on the default
 configuration with default values.
 
 \begin{figure}
-\label{f:b}
 \caption{Result of running the algorithm on the default configuration with default values.
 Amongst 1000 executions, 780 of them successfully reached the goal configuration.
 The value iteration terminated after 150 iterations.}
+\label{f:b}
 \centerline{\includegraphics[width=5cm]{b.png}}
 \end{figure}
 
@@ -269,54 +307,265 @@ effect of this algorithm.
 The following results seems to suggest that increasing the resolution makes the algorithm
 succeed more often.
 
-We ran two additional experiments in addition to the one using the default
+We ran additional experiments in addition to the one using the default
 values. The result is summarized in Figure~\ref{f:resolution}.
-The individual results for $n=15$ and $n=10$ are depicted in Figure~\ref{f:midres} and Figure~\ref{f:lowres},
-respectively. We were unable
+The entry in bold is using the default values.
+We show four of the results in Figures~\ref{f:b_veryhio} through
+Figure~\ref{f:b_lowres_lowio}.
+We were unable
 to succesfully run the algorithm with a resolution significantly higher than
 $20$, due to the computer running out of memory (for storing the MDP model).
 
 \begin{figure}
-\label{f:resolution}
 \caption{Effect of resolutions. Time of execution excludes the time required
          to generate the transition function of the MDP}
+\label{f:resolution}
 \begin{tabular}{ l | l | l | l }
   $n$ & $m$ & Success rate & Time of execution \\ \hline \hline
-  $20$ & $16$ & $0.780$ & $90$ seconds \\ \hline
-  $20$ & $12$ & $0.780$ & $90$ seconds \\ \hline
-  $20$ & $8$ & $0.780$ & $90$ seconds \\ \hline
-  $15$ & $16$ & $0.124$ & $18$ seconds \\ \hline
-  $15$ & $12$ & $0.124$ & $18$ seconds \\ \hline
-  $15$ & $8$ & $0.124$ & $18$ seconds \\ \hline
-  $10$ & $16$ & $0.112$ & $6$ seconds \\ \hline
-  $10$ & $12$ & $0.112$ & $6$ seconds \\ \hline
-  $10$ & $8$ & $0.122$ & $3$ seconds \\ \hline
+  $20$ & $32$ & $0.650 $ & $288$ seconds \\ \hline  % Display this?
+  $\mathbf{20}$ & $\mathbf{16}$ & $\mathbf{0.780}$ & $\mathbf{90}$ seconds \\ \hline
+  $20$ & $12$ & $0.470$ & $58$ seconds \\ \hline
+  $20$ & $8$ & $0.252$ & $29$ seconds \\ \hline  % Display this?
+
+  $15$ & $16$ & $0.188$ & $37$ seconds \\ \hline
+  $15$ & $12$ & $0.095$ & $22$ seconds \\ \hline
+  $15$ & $8$ & $0.043$ & $14$ seconds \\ \hline
+
+  $10$ & $16$ & $0.059$ & $6$ seconds \\ \hline % Display this?
+  $10$ & $12$ & $0.046$ & $4$ seconds \\ \hline
+  $10$ & $8$ & $0.040$ & $3.5$ seconds \\ \hline % Display this?
 \end{tabular}
 \end{figure}
 
 \begin{figure}
-\label{f:b}
-\caption{Default configuration with $n=15$, and $m=12$}
-\centerline{\includegraphics[width=5cm]{b_medres.png}}
+\caption{Default configuration with $n=20$, and $m=32$}
+\label{f:b_veryhio}
+\centerline{\includegraphics[width=5cm]{b_veryhio.png}}
 \end{figure}
 
 \begin{figure}
-\label{f:b}
-\caption{Default configuration with $n=10$, and $m=8$}
-\centerline{\includegraphics[width=5cm]{b_lowres.png}}
+\caption{Default configuration with $n=20$, and $m=8$}
+\label{f:b_lowio}
+\centerline{\includegraphics[width=5cm]{b_lowio.png}}
 \end{figure}
+
+\begin{figure}
+\caption{Default configuration with $n=10$, and $m=16$}
+\label{f:b_lowres_hio}
+\centerline{\includegraphics[width=5cm]{b_lowres_hio.png}}
+\end{figure}
+
+\begin{figure}
+\caption{Default configuration with $n=10$, and $m=8$}
+\label{f:b_lowres_lowio}
+\centerline{\includegraphics[width=5cm]{b_lowres_lowio.png}}
+\end{figure}
+
+As expected, the higher the resolution, the higher the running time would be.
+
+On performance, in general increasing the resolution increase the success rate of reaching
+the goal. However, there is an interesting case when the resolution
+for orientation is very high, where the success rate decrease. We observed
+the result, and see that for some reason, using very high orientation
+resolution yields to a path that is significantly different than when the
+resolution is not as high: here, the robot seems to be "bolder" and
+likes to pick the narrow passage more often. We hypothesize that the increase
+of resolution makes the algorithm's model more accurate and thus makes the model
+more confident in taking the shorter path to goal, and hence maximizing the
+reward (since taking longer path cause the robot to lose reward by virtue
+of the discount factor).
 
 \subsection{Effect of variance}
 
+We vary the variance and the result is summarized in
+Figure~\ref{f:variance}. The entry in bold is using the default values.
+The individual results are given in Figure~\ref{f:b_veryhivar}, Figure~\ref{f:b_lowvar},
+and Figure~\ref{f:b_verylowvar}.
+
+\begin{figure}
+\caption{Effect of varying the variance of the noise}
+\label{f:variance}
+\begin{tabular}{ l | l | l | l }
+  $\sigma^2$ & $\sigma_\theta^2$ & Success rate & Time of execution \\ \hline \hline
+  $0.02$ & $0.2$ & $0.256$ & $261$ seconds \\ \hline  % Display this?
+  $\mathbf{0.01}$ & $\mathbf{0.1}$ & $\mathbf{0.780}$ & $\mathbf{90}$ seconds \\ \hline
+  $0.005$ & $0.05$ & $0.939$ & $41$ seconds \\ \hline  % Display this?
+  $0.001$ & $0.01$ & $0.995$ & $12$ seconds \\ \hline  % Display this?
+\end{tabular}
+\end{figure}
+
+\begin{figure}
+\caption{Default configuration with $\sigma^2=0.02$, and $\sigma_\theta^2=0.2$}
+\label{f:b_veryhivar}
+\centerline{\includegraphics[width=5cm]{b_veryhivar.png}}
+\end{figure}
+
+\begin{figure}
+\caption{Default configuration with $\sigma^2=0.005$, and $\sigma_\theta^2=0.05$}
+\label{f:b_lowvar}
+\centerline{\includegraphics[width=5cm]{b_lowvar.png}}
+\end{figure}
+
+\begin{figure}
+\caption{Default configuration with $\sigma^2=0.001$, and $\sigma_\theta^2=0.01$}
+\label{f:b_verylowvar}
+\centerline{\includegraphics[width=5cm]{b_verylowvar.png}}
+\end{figure}
+
+
+The variance has a direct effect on running time, since higher variance
+causes each of the state of MDP to have a higher number of other states
+that is reachable with non-negligible probability.
+
+In general, higher variance decreases the performance of the algorithm,
+and higher variance makes the robot choose the safer path.
+
 \subsection{Effect of reward}
 
+We vary the proportion of reward upon reaching goal and reward when hitting the
+boundaries and summarize the results in
+Figure~\ref{f:reward}. The entry in bold is using the default values.
+The individual results for the two extreme cases and the middle case are given
+in Figure~\ref{f:b_veryhigoal}, Figure~\ref{f:b_eqgoal},
+and Figure~\ref{f:b_verylowgoal}.
+
+\begin{figure}
+\caption{Effect of varying the rewards}
+\label{f:reward}
+\begin{tabular}{ l | l | l | l }
+  $r_g$ & $r_i$ & Success rate & Time of execution \\ \hline \hline
+  $100000$ & $-10$ & $0.559$ & $66$ seconds \\ \hline  % Display this?
+  $10000$ & $-100$ & $0.589$ & $66$ seconds \\ \hline  % Display this?
+  $1000 $ & $-1000$ & $0.806$ & $69$ seconds \\ \hline  % Display this?
+  $\mathbf{100}$ & $\mathbf{-10000}$ & $\mathbf{0.780}$ & $\mathbf{90}$ seconds \\ \hline
+  $10$ & $-100000$ & $0.785$ & $99$ seconds \\ \hline  % Display this?
+\end{tabular}
+\end{figure}
+
+\begin{figure}
+\caption{Default configuration with $r_g=100000$, and $r_i=-10$}
+\label{f:b_veryhigoal}
+\centerline{\includegraphics[width=5cm]{b_veryhigoal.png}}
+\end{figure}
+
+\begin{figure}
+\caption{Default configuration with $r_g=1000$, and $r_i=-1000$}
+\label{f:b_eqgoal}
+\centerline{\includegraphics[width=5cm]{b_eqgoal.png}}
+\end{figure}
+
+\begin{figure}
+\caption{Default configuration with $r_g=10$, and $r_i=-100000$}
+\label{f:b_verylowgoal}
+\centerline{\includegraphics[width=5cm]{b_verylowgoal.png}}
+\end{figure}
+
+There is a trend that awarding penalty for falling greater than reward for
+suceeding allows the robot to better find a path. However, we hypothesize that
+if we set the discount factor to $1$, then there will be no such trend and all
+proportions of rewards will yield the same path.
+
 \subsection{Effect of discount factor}
+\label{s:discount}
+
+We vary the discount factor and summarize the results in
+Figure~\ref{f:discount}. The entry in bold is using the default values.
+The individual results for some entries are given in
+Figure~\ref{f:b_zerodiscount} through Figure~\ref{f:b_verylowdiscount}.
+
+\begin{figure}
+\caption{Effect of varying the discount factor}
+\label{f:discount}
+\begin{tabular}{ l | l | l }
+  $\eta$ & Success rate & Time of execution \\ \hline \hline
+  $1.0$ $0.808$ & $93$ seconds \\ \hline  % Display this?
+  $0.999$ $0.818$ & $115$ seconds \\ \hline  % Display this?
+  $0.99$ $0.809$ & $113$ seconds \\ \hline  % Display this?
+  $\mathbf{0.95}$ & $\mathbf{0.780}$ & $\mathbf{90}$ seconds \\ \hline
+  $0.90$ & $0.733$ & $71$ seconds \\ \hline  % Display this?
+  $0.50$ & $0.392$ & $32$ seconds \\ \hline  % Display this?
+\end{tabular}
+\end{figure}
+
+\begin{figure}
+\caption{Default configuration with $\eta=1.0$}
+\label{f:b_zerodiscount}
+\centerline{\includegraphics[width=5cm]{b_zerodiscount.png}}
+\end{figure}
+
+\begin{figure}
+\caption{Default configuration with $\eta=0.99$}
+\centerline{\includegraphics[width=5cm]{b_hidiscount.png}}
+\end{figure}
+
+\begin{figure}
+\caption{Default configuration with $\eta=0.90$}
+\centerline{\includegraphics[width=5cm]{b_lowdiscount.png}}
+\end{figure}
+
+\begin{figure}
+\caption{Default configuration with $\eta=0.50$}
+\label{f:b_verylowdiscount}
+\centerline{\includegraphics[width=5cm]{b_verylowdiscount.png}}
+\end{figure}
+
+\subsection{Experiments with discount factor of $1$}
+\label{s:ideal}
+
+For the following experiments, we use the default values except for the
+parameters shown in Figure~\ref{f:idealparam}.
+
+\begin{figure}
+  \caption{Non-default variables used in experiments of Section~\ref{s:ideal}}
+\label{f:idealparam}
+\begin{tabular}{ l | l | l }
+  Symbol & Description & Value \\ \hline \hline
+  $r_g$ & Reward upon reaching the goal & 1 \\ \hline
+  $r_i$ & Reward if fall into ice & 0 \\ \hline
+  $\eta$ & Discount factor & 1.0 \\ \hline
+  $\epsilon$ & Maximum difference before value iteration stops & 0.000001 \\ \hline
+\end{tabular}
+\end{figure}
+
+\subsection{U-turn}
+
+In the following scenario, the robot's goal is to return to the original position
+with reverse direction. Initially the robot is on the bottom-left of the field
+and facing up. He would like to reach the same position, but facing down.
+The result of the execution is depicted in Figure~\ref{f:uturn}.
+
+The Markov Decision Process calculation is completed in 160 seconds,
+and we found a success rate of 0.931 amongst 1000 trials.
+
+\begin{figure}
+\caption{The U-turn obstacle configuration.}
+\label{f:uturn}
+\centerline{\includegraphics[width=5cm]{uturn.png}}
+\end{figure}
+
+\subsection{Narrow passage}
+
+In this scenario, there is a narrow passage in the middle that the robot
+must pass through.
+The result of the execution is depicted in Figure~\ref{f:narrow}.
+
+The Markov Decision Process calculation is completed in 83 seconds,
+and we found a success rate of 0.942 amongst 1000 trials.
+
+\begin{figure}
+\caption{The narrow passage obstacle configuration.}
+\label{f:narrow}
+\centerline{\includegraphics[width=5cm]{narrow.png}}
+\end{figure}
 
 \section{Conclusion}
 % * Briefly summarize your main findings.
 We showed that the Markov Decision Process is able to give reasonable paths
 to the robot even when the field is uncertain and constrainted heavily by
-non-holonomic constraints.
+non-holonomic constraints. In addition, we showed that under some circumstances,
+even when using infinite horizon, we can use a discount factor of $1$ that has
+nice implications.
 
 \end{document}
+
 

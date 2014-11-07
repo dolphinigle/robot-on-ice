@@ -114,7 +114,7 @@ def CreatePath(start_config, engine, obstacles, max_walk, ideal=True):
     sample_func = engine.grid.SampleMovement
 
   while (walk_limit and
-         not markov.CloseToGoal(current_config, engine.goal_config, engine.grid) and
+         not markov.CloseToGoalConst(current_config, engine.goal_config, engine.grid) and
          not obstacles.contains(Point(current_config[0][0], current_config[0][1])) and
          not markov.OutsideBoundaries(current_config)):
     walk_limit -= 1
@@ -126,6 +126,9 @@ def CreatePath(start_config, engine, obstacles, max_walk, ideal=True):
                           engine.average_path_length)
     if geom_util.AngleAlmostEqual(steering_angle % ANGLE_MOD, 0.0):
       current_path.append(LineString([current_config[0], (x, y)]))
+      ls = LineString([current_config[0], (x, y)])
+      if ls.crosses(obstacles):
+        break
     else:
       radius = engine.vehicle_length / math.sin(steering_angle)
       antirangle = (math.pi / 2.0 - current_config[1]) % ANGLE_MOD
@@ -151,7 +154,7 @@ def CreatePath(start_config, engine, obstacles, max_walk, ideal=True):
     current_config = ((x, y), o)
 
   state = SUCCESS
-  if not markov.CloseToGoal(current_config, engine.goal_config, engine.grid):
+  if not markov.CloseToGoalConst(current_config, engine.goal_config, engine.grid):
     state = ICED
   if not walk_limit:
     state = TLE
