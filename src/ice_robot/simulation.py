@@ -1,3 +1,4 @@
+import math
 import time
 
 from shapely import ops
@@ -8,6 +9,7 @@ from ice_robot.markov import AXIS_RESOLUTION, ORIENTATION_RESOLUTION, \
   MAX_TURNING_ANGLE, VEHICLE_LENGTH, AXIS_VARIANCE, ORIENTATION_VARIANCE, \
   ICED_REWARD, GOAL_REWARD
 from nonholonomic_shortest_path import parse_input, draw
+from nonholonomic_shortest_path.geom_util import ANGLE_MOD
 
 
 PATHS_TO_SIMULATE = 5
@@ -89,9 +91,18 @@ def Simulate(filename, engine_class):
   elapsed_time = end_time - start_time
   print '{0} seconds'.format(elapsed_time)
 
+  def Callback(pos1, pos2, drawpath, drawideal):
+    print pos1, pos2
+    o = math.atan2(pos2[1] - pos1[1], pos2[0] - pos1[0]) % ANGLE_MOD
+    p, _ = ice_engine.CreatePath((pos1, o), engine, all_obstacles, WALK_LIMIT, ideal=False)
+    drawpath(p)
+    p, _ = ice_engine.CreatePath((pos1, o), engine, all_obstacles, WALK_LIMIT, ideal=True)
+    drawideal(p)
+
   draw.DrawSpace(start_config,
                  goal_config,
                  obstacles,
                  solution=ideal_path,
                  solutions=paths,
-                 bg_solutions=bg_paths)
+                 bg_solutions=bg_paths,
+                 twopos_callback=Callback)

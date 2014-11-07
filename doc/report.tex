@@ -509,6 +509,19 @@ Figure~\ref{f:b_zerodiscount} through Figure~\ref{f:b_verylowdiscount}.
 \centerline{\includegraphics[width=5cm]{b_verylowdiscount.png}}
 \end{figure}
 
+The cases with low discount factor has rather poor performance, since
+they are less far sighted and thus their strategy is more of a self-
+perseverance rather than goal oriented.
+
+We now highlight the case where the discount factor is $1$ (Figure~\ref{f:zerodiscount}). Compared to the default case (Figure~\ref{f:b}), this path
+yields better accuracy. This is confirmed by seeing the results -- in the
+case with discount factor $1$, none of the paths created ever attempt to
+pass through the narrow corridor on the left, in line with our intuition.
+Here, there are no longer incentive for arriving quickly, the only
+incentive is to arrive at all. Thus, the robot may make sensible decision
+to keep spinning around instead of trying its luck and go through the narrow
+passage.
+
 \subsection{Experiments with discount factor of $1$}
 \label{s:ideal}
 

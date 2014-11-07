@@ -1,6 +1,5 @@
 import math
 import random
-import sys
 
 import pygame
 
@@ -16,6 +15,7 @@ def DrawSpace(start_config,
               solution=None,
               solutions=None,
               bg_solutions=None,
+              twopos_callback=None,
               ):
 
   screen_width = 640
@@ -42,15 +42,30 @@ def DrawSpace(start_config,
   
   #create the screen
   window = pygame.display.set_mode((screen_width, screen_height)) 
-  background = pygame.Surface(window.get_size()).convert()
-  background.fill((255, 255, 255))
-  window.blit(background, (0, 0))
 
-  obstacle_color = (51, 255, 204)
-  for obstacle in obstacles:
-    pygame.draw.polygon(window,
-                        obstacle_color,
-                        map(NormalizePoint, obstacle.exterior.coords))
+  def DrawBG():
+    background = pygame.Surface(window.get_size()).convert()
+    background.fill((255, 255, 255))
+    window.blit(background, (0, 0))
+  
+    pygame.draw.circle(window,
+                       goal_config_color,
+                       NormalizePoint(goal_config[0]),
+                       point_radius)
+  
+
+    obstacle_color = (51, 255, 204)
+    for obstacle in obstacles:
+      pygame.draw.polygon(window,
+                          obstacle_color,
+                          map(NormalizePoint, obstacle.exterior.coords))
+
+    pygame.draw.circle(window,
+                       start_config_color,
+                       NormalizePoint(start_config[0]),
+                       1)
+  
+  DrawBG()
 
   def DrawPath(path, arc_color, segment_color):
     for item in path:
@@ -84,12 +99,6 @@ def DrawSpace(start_config,
                          NormalizePoint(item.coords[0]),
                          NormalizePoint(item.coords[1]))
 
-  pygame.draw.circle(window,
-                     goal_config_color,
-                     NormalizePoint(goal_config[0]),
-                     point_radius)
-  point_radius = 1
-
   if bg_solutions:
     for path in bg_solutions:
       color = (random.randint(220, 255), random.randint(220, 255), random.randint(220, 255))
@@ -106,20 +115,49 @@ def DrawSpace(start_config,
   pygame.draw.circle(window,
                      start_config_color,
                      NormalizePoint(start_config[0]),
-                     point_radius)
+                     1)
 
   #draw it to the screen
   pygame.display.flip() 
   
   #input handling (somewhat boilerplate code):
   quitted = False
+  pos1 = None
+
+  def NormalizeP(p):
+    return (1.0 * p[0] / screen_height,
+            1.0 * (screen_width - p[1]) / screen_width
+            )
+
   while not quitted: 
     for event in pygame.event.get(): 
       if event.type == pygame.QUIT: 
         pygame.quit()
         quitted = True
         break
-      else: 
+      elif event.type == pygame.KEYDOWN:
+        if event.key == pygame.K_c:
+          DrawBG()
+          pygame.display.flip()
+      elif event.type == pygame.MOUSEBUTTONUP:
+        if twopos_callback:
+          pos = pygame.mouse.get_pos()
+          if pos1 is not None and pos1 != pos:
+            color = (random.randint(0, 200), random.randint(0, 200), random.randint(0, 200))
+            while max(color) < 150 or min(color) > 50:
+              color = (random.randint(0, 200), random.randint(0, 200), random.randint(0, 200))
+            def Callback(path):
+              DrawPath(path, color, color)
+            def CallbackIdeal(path):
+              DrawPath(path, arc_color, segment_color)
+            DrawBG()
+            twopos_callback(NormalizeP(pos1),
+                            NormalizeP(pos),
+                            Callback,
+                            CallbackIdeal)
+            pygame.display.flip() 
+      elif event.type == pygame.MOUSEBUTTONDOWN:
+        pos1 = pygame.mouse.get_pos()
+      else:
         pass
-        # print event 
 
