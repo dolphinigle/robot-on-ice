@@ -199,8 +199,15 @@ $$x = p_g \cdot r_g + (1 - p_g) \cdot r_i$$
 where $p_g$ is the probability of reaching the goal.
 
 Thus, given $x$, we can deduce $p_g$. We can compute this more easily if we
-set $r_g = 1$ and $r_i = 1$ (the resulting path will still be the same).
-We discuss the ideal case in Section~\ref{s:ideal}.
+set $r_g = 1$ and $r_i = 0$ (the resulting path will still be the same).
+Indeed, since the robot will eventually either reach the goal or failed to
+do so, we have:
+
+$$x = p_g \cdot r_g = p_g$$
+
+meaning that the value of each state now has a very direct conclusion of
+being exactly the (approximate) probability of reaching the goal!
+We discuss the experimental results for this subcase in Section~\ref{s:ideal}.
 
 \section{Results and discussions}
 % * Present the theoretical analysis, experiment results, comparison, etc., as applicable.
