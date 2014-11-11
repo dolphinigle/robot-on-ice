@@ -7,5 +7,6 @@ from ice_robot import simulation, ice_engine
 
 
 filename_dir = '../../inputs/'
-simulation.Simulate(filename_dir + 'e.mp', ice_engine.MarkovDecisionProcessGuide)
+simulation.Simulate(filename_dir + 'e.mp',
+                    ice_engine.MarkovDecisionProcessGuide)
 
